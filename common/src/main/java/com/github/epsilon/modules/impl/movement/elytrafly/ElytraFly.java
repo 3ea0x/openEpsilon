@@ -2,8 +2,10 @@ package com.github.epsilon.modules.impl.movement.elytrafly;
 
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.impl.*;
+import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
 import com.github.epsilon.settings.impl.EnumSetting;
@@ -45,11 +47,15 @@ public class ElytraFly extends Module {
     public final EnumSetting<SwapMode> swapMode = enumSetting("Swap Mode", SwapMode.InvSwitch);
 
     public final BoolSetting armored = boolSetting("Armored", false);
+    public final BoolSetting noEat = boolSetting("No Eat", false);
     public final BoolSetting unbreaking = boolSetting("Unbreaking", true);
     public final IntSetting unbreakingDelay = intSetting("Unbreaking Delay", 800, 100, 2000, 50, () -> unbreaking.getValue());
     public final BoolSetting noSprint = boolSetting("No Sprint", true, () -> mode.is(ElytraFlightModes.Control) && armored.getValue());
     public final BoolSetting useFireworks = boolSetting("Use Fireworks", true, () -> mode.is(ElytraFlightModes.Control));
     public final IntSetting boostDelay = intSetting("Boost Delay", 20, 2, 50, 1, () -> mode.is(ElytraFlightModes.Control) && useFireworks.getValue());
+
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    public final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     public final DoubleSetting pitch40lowerBounds = doubleSetting("Pitch40 Lower Bounds", 180.0, -128.0, 1024.0, 1.0, () -> mode.is(ElytraFlightModes.Pitch40));
     public final DoubleSetting pitch40rotationSpeedUp = doubleSetting("Pitch40 Rotate Speed Up", 5.45, 1.0, 20.0, 0.05, () -> mode.is(ElytraFlightModes.Pitch40));
@@ -169,10 +175,18 @@ public class ElytraFly extends Module {
 
     @EventHandler
     private void onMousePress(MousePressEvent event) {
-        if (mc.screen != null) return;
+        if (mc.gui.screen() != null) return;
+        // 只有开启 No Eat 时才拦截右键，其余情况允许正常进食/使用物品。
+        if (!noEat.getValue()) return;
         if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_RIGHT && event.getAction() == GLFW.GLFW_PRESS && getActiveMode().shouldCancelRightClick()) {
             event.cancel();
         }
+    }
+
+    @EventHandler
+    private void onRightClick(RightClickEvent event) {
+        if (nullCheck()) return;
+        getActiveMode().onRightClick();
     }
 
     public ElytraFlightMode getActiveMode() {

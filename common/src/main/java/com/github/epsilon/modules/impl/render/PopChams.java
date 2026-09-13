@@ -20,7 +20,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.player.Player;
-import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
 import java.util.ArrayList;
@@ -44,6 +43,7 @@ public class PopChams extends Module {
     private final ColorSetting lineColor = colorSetting("Line Color", new Color(255, 255, 255, 127));
 
     private final List<GhostPlayer> ghosts = new ArrayList<>();
+    private int nextEntityId = Integer.MIN_VALUE;
 
     @Override
     protected void onDisable() {
@@ -88,6 +88,7 @@ public class PopChams extends Module {
 
         private GhostPlayer(Player player) {
             super(mc.level, new GameProfile(player.getGameProfile().id(), player.getGameProfile().name()));
+            setId(nextEntityId++);
             float tickDelta = mc.level.tickRateManager().isFrozen() ? 1.0f : mc.getDeltaTracker().getGameTimeDeltaPartialTick(true);
             walkPosition = player.walkAnimation.position(tickDelta);
             walkSpeed = player.walkAnimation.speed(tickDelta);
@@ -147,7 +148,7 @@ public class PopChams extends Module {
         }
 
         @Override
-        public @Nullable Component belowNameDisplay() {
+        public Component belowNameDisplay() {
             return null;
         }
     }

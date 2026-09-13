@@ -18,11 +18,11 @@ public class GUIMove extends Module {
         super("GUI Move", Category.MOVEMENT);
     }
 
-    private BoolSetting sneakValue = boolSetting("Sneak", false);
+    private final BoolSetting sneakValue = boolSetting("Sneak", false);
 
     @EventHandler(priority = EventPriority.HIGHEST)
     private void onKeyboardInput(KeyboardInputEvent event) {
-        if (mc.screen == null || mc.screen instanceof ChatScreen) return;
+        if (mc.gui.screen() == null || mc.gui.screen() instanceof ChatScreen) return;
 
         boolean up = isKeyDown(mc.options.keyUp);
         boolean down = isKeyDown(mc.options.keyDown);

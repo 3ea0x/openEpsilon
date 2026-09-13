@@ -7,32 +7,20 @@
 ```text
 docs/
 ├── README.md
+├── addon-development.md
+├── gui.md
+├── gui-library.md
 ├── architecture/
 │   ├── overview.md
 │   └── lifecycle-and-components.md
-├── development/
-│   ├── build-and-versioning.md
-│   ├── modules-and-addons.md
-│   ├── events-and-mixins.md
-│   ├── configuration-and-rotation.md
-│   ├── rendering.md
-│   └── internationalization.md
-├── lua-scripting/
-│   ├── README.md
-│   ├── getting-started.md
-│   ├── packages-and-modules.md
-│   ├── settings-and-storage.md
-│   ├── events-and-java.md
-│   ├── util-code-completion.md
-│   ├── rendering.md
-│   ├── internationalization.md
-│   ├── management-and-lifecycle.md
-│   ├── architecture.md
-│   └── testing-and-troubleshooting.md
-└── examples/
-    └── lua/
-        ├── epsilon_lib.lua
-        └── example-suite/
+└── development/
+    ├── build-and-versioning.md
+    ├── modules-and-addons.md
+    ├── events-and-mixins.md
+    ├── configuration-and-rotation.md
+    ├── rendering.md
+    ├── runtime-assets.md
+    └── internationalization.md
 ```
 
 ## 阅读路径
@@ -40,14 +28,16 @@ docs/
 | 主题 | 文档 |
 |---|---|
 | 项目定位、仓库结构、分层与 `common` 包 | [架构总览](architecture/overview.md) |
-| 启动顺序、Holders、Managers | [生命周期与核心组件](architecture/lifecycle-and-components.md) |
+| 启动顺序、Manager 与核心组件 | [生命周期与核心组件](architecture/lifecycle-and-components.md) |
 | 版本来源、Gradle 约定、构建命令 | [构建与版本](development/build-and-versioning.md) |
-| Module、Setting DSL、Addon | [模块与 Addon](development/modules-and-addons.md) |
+| Module、Setting DSL、Addon 注册 | [模块与 Addon](development/modules-and-addons.md) |
 | EventBus、事件目录、Mixin | [事件与 Mixin](development/events-and-mixins.md) |
 | 配置目录、持久化、RotationManager | [配置与旋转](development/configuration-and-rotation.md) |
-| Lumin、GUI/HUD、2D/3D 渲染 | [渲染](development/rendering.md) |
-| Lua 脚本包、Module、Java 调用、Setting、事件、渲染和管理 | [Lua 脚本教程](lua-scripting/) |
-| Lua 代码补全库与可直接安装的多模块示例包 | [Lua 示例](examples/lua/) |
+| Lumin Graphics、GUI/HUD、2D/3D 渲染 | [渲染](development/rendering.md) |
+| 视频/玲纱/FFmpeg 按需下载与平台限定提示 | [运行时资源下载](development/runtime-assets.md) |
+| Screen 宿主、Dropdown、HUD 提交路径 | [GUI 架构](gui.md) |
+| `gui/lib` 声明式 UI 库的 API 与边界 | [GUI Library](gui-library.md) |
+| Addon 接入、异常隔离与调试 | [Addon 开发](addon-development.md) |
 | key、JSON 格式和同步流程 | [国际化](development/internationalization.md) |
 
 ## 维护原则

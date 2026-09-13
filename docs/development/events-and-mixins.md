@@ -39,14 +39,20 @@ EventBus 在某个监听器取消事件后立即停止调用后续监听器。
 |---|---|
 | Tick/生命周期 | `ClientTickEvent.Pre/Post`、`PlayerTickEvent.Pre/Post`、`GameJoinedEvent`、`GameLeftEvent`、`LevelUpdateEvent`、`RespawnEvent` |
 | 渲染 | `Render2DEvent.Level/HUD`、`Render3DEvent`、`AfterRender3DEvent`、`RotationAnimationEvent`、`ChunkOcclusionEvent` |
+| 渲染细节 | `ArmRenderEvent`、`HeldItemRenderEvent` |
 | 输入/界面 | `KeyPressEvent`、`MousePressEvent`、`MouseScrollEvent`、`KeyboardInputEvent`、`OpenScreenEvent` |
-| 网络 | `PacketEvent.Send/Receive`、`SendPositionEvent` |
+| 网络 | `PacketEvent.Send/Receive`、`SendPositionEvent`、`AfterSendPositionEvent` |
 | 战斗/交互 | `AttackEntityEvent`、`AttackSlowDownEvent`、`AttackYawEvent`、`RightClickEvent`、`UseItemEvent`、`StartUseItemEvent`、`SwingHandEvent` |
 | 方块 | `BlockCollisionEvent`、`StartDestroyBlockEvent`、`DestroyBlockEvent`、`DestroyedBlockEvent`、`PlaceBlockEvent` |
-| 移动 | `MoveEvent`、`StrafeEvent`、`TravelEvent`、`JumpEvent`、`SlowdownEvent`、`FallFlyingEvent`、`FireworkRotationEvent` |
+| 移动 | `MoveEvent`、`StrafeEvent`、`TravelEvent`、`JumpEvent`、`SlowdownEvent`、`FallFlyingEvent`、`FallFlyingMovementEvent`、`FireworkRotationEvent` |
 | Raytrace | `RaytraceEvent`、`UseItemRaytraceEvent` |
 
-`Render2DEvent` 当前携带 Minecraft 26.1.2 的 `GuiGraphicsExtractor`。
+`Render2DEvent` 携带 Minecraft 26.2 的 `GuiGraphicsExtractor`。`Render2DEvent.Level` 与
+`Render2DEvent.HUD` 由 `MixinGuiRenderer` 在 `GuiRenderer.render` 头部发布，前者用于世界 2D 覆盖层，
+后者用于 HUD 与主界面。
+
+`FallFlyingMovementEvent` 在 `LivingEntity.updateFallFlyingMovement` 返回后发布。ElytraCombat 的
+Direct Velocity 模式通过该事件覆盖最终速度；默认 Input 模式不会修改原版结果。
 
 ## Mixin 配置
 
@@ -56,4 +62,9 @@ EventBus 在某个监听器取消事件后立即停止调用后续监听器。
 | Fabric | `fabric/src/main/resources/epsilon.fabric.mixins.json` | `common/src/main/resources/epsilon.accesswidener` |
 | NeoForge | `neoforge/src/main/resources/epsilon.neoforge.mixins.json` | `common/src/main/resources/META-INF/accesstransformer.cfg` |
 
-Mixin 类名使用 `Mixin<目标类名>`。注入目标、描述符、局部变量和调用点必须以当前版本参考源码为准；具体强制规则见 [`AGENTS.md`](../../AGENTS.md)。
+三个配置都使用 `compatibilityLevel: JAVA_25`、`injectors.defaultRequire: 1`；共享配置额外要求
+`overwrites.requireAnnotations`。Sodium 与 Iris 兼容 Mixin 通过 `@Pseudo` 和 `targets = "..."`
+软定位目标类，不使用 `IMixinConfigPlugin` 门控。
+
+Mixin 类名使用 `Mixin<目标类名>`。注入目标、描述符、局部变量和调用点必须以当前版本参考源码为准；
+具体强制规则见 [`AGENTS.md`](../../AGENTS.md)。

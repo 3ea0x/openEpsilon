@@ -24,7 +24,7 @@ import java.util.List;
 
 import static com.github.epsilon.Constants.mc;
 
-public final class Render3DScheduler {
+public class Render3DScheduler {
 
     public static final Render3DScheduler INSTANCE = new Render3DScheduler();
 
@@ -49,9 +49,6 @@ public final class Render3DScheduler {
 
     private Render3DScheduler() {
         EventBus.INSTANCE.subscribe(this);
-    }
-
-    public static void init() {
     }
 
     public boolean isEmpty() {
@@ -92,24 +89,16 @@ public final class Render3DScheduler {
         filledSides.add(new FilledSideCommand(box, color, direction));
     }
 
-    public void addOutlineBox(PoseStack stack, AABB box, Color color) {
-        addOutlineBox(stack, box, color.getRGB());
-    }
-
     public void addOutlineBox(AABB box, Color color) {
         addOutlineBox(box, color.getRGB());
     }
 
-    public void addOutlineBox(PoseStack stack, AABB box, int color) {
-        addOutlineBox(stack, box, color, 2.0f);
+    public void addOutlineBox(AABB box, Color color, float thickness) {
+        addOutlineBox(box, color.getRGB(), thickness);
     }
 
     public void addOutlineBox(AABB box, int color) {
         addOutlineBox(box, color, 2.0f);
-    }
-
-    public void addOutlineBox(PoseStack stack, AABB box, int color, float thickness) {
-        outlineBoxes.add(new OutlineBoxCommand(box, color, thickness));
     }
 
     public void addOutlineBox(AABB box, int color, float thickness) {
@@ -168,7 +157,7 @@ public final class Render3DScheduler {
         }
 
         LuminImmediateRenderer.PosColorQuads builder = LuminImmediateRenderer.beginPosColorQuads(FILLED_BOX_PIPELINE);
-        Matrix4f matrix = mc.gameRenderer.getGameRenderState().levelRenderState.cameraRenderState.viewRotationMatrix;
+        Matrix4f matrix = mc.gameRenderer.gameRenderState().levelRenderState.cameraRenderState.viewRotationMatrix;
         Vec3 camPos = mc.getEntityRenderDispatcher().camera.position();
 
         for (FilledBoxCommand command : filledBoxes) {

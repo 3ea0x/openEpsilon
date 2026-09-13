@@ -52,13 +52,17 @@ public abstract class ElytraFlightMode {
         return true;
     }
 
+    /** 原版处理右键（Minecraft#handleKeybinds）之前触发，用于在续吃判定之前调整右键状态。 */
+    public void onRightClick() {
+    }
+
     public void armUnbreakingTimer() {
         unbreakingTimer.setMs(917813L);
     }
 
     public void handleUnbreaking() {
         if (!elytraFly.unbreaking.getValue()) return;
-        if (mc.screen != null) return;
+        if (mc.gui.screen() != null) return;
         if (!mc.player.isFallFlying() || mc.player.onGround()) return;
         if (!unbreakingTimer.passedMillise(elytraFly.unbreakingDelay.getValue())) return;
 

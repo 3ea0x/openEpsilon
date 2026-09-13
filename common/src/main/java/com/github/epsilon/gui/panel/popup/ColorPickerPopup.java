@@ -1,12 +1,10 @@
 package com.github.epsilon.gui.panel.popup;
 
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.settings.impl.ColorSetting;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
@@ -38,7 +36,7 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
     private final UiRect bounds;
     private final UiRect anchorBounds;
     private final ColorSetting setting;
-    private final UiTextMetrics textRenderer = MinecraftUiRuntime2612.current().textMetrics();
+    private final TextRenderer textRenderer = TextRenderer.create();
     private final Animation openAnimation = new Animation(Easing.EASE_OUT_CUBIC, 160L);
     private final Animation[] indicatorAnimations = new Animation[]{
             new Animation(Easing.EASE_OUT_CUBIC, 120L),
@@ -73,12 +71,13 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
             float progress = scope.animate(openAnimation, 1.0f);
             float popupY = bounds.y() - (1.0f - progress) * 6.0f;
             UiRect popupBounds = new UiRect(bounds.x(), popupY, bounds.width(), bounds.height());
+            MD3Theme.submitGlassBlur(popupBounds.x(), popupBounds.y(), popupBounds.width(), popupBounds.height(), MD3Theme.CARD_RADIUS);
             scope.pushAbsolute(popupBounds, popup -> {
                 popup.popupCard(popupBounds.atOrigin(),
                         MD3Theme.CARD_RADIUS,
                         MD3Theme.POPUP_SHADOW_BLUR,
-                        EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress))),
-                        EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 255)));
+                        MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress)),
+                        MD3Theme.glassPopup(MD3Theme.SURFACE_CONTAINER_LOW));
                 popup.pushAbsolute(anchorBounds, anchor ->
                         anchor.roundRect(0.0f, 0.0f, anchorBounds.width(), anchorBounds.height(), MD3Theme.CARD_RADIUS, MD3Theme.withAlpha(MD3Theme.SECONDARY_CONTAINER, 255)));
 
@@ -119,11 +118,9 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
                             MD3Theme.isLightTheme() ? MD3Theme.TEXT_MUTED : MD3Theme.TEXT_SECONDARY);
                     popup.roundRect(localRowBounds.x(), localRowBounds.y(), localRowBounds.width(), localRowBounds.height(), 8.0f, MD3Theme.withAlpha(rowSurface, 255));
                     popup.slider(localTrackBounds, channelProgress, 2.5f,
-                            EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.isLightTheme()
-                                    ? MD3Theme.SURFACE_CONTAINER_HIGH : MD3Theme.SURFACE_CONTAINER_HIGHEST, 255)),
-                            0.0f, 3.0f, EpsilonUiTheme.lumin(MD3Theme.withAlpha(channel.accent, 255)),
-                            4.0f, 12.0f, 2.0f,
-                            EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.ON_PRIMARY_CONTAINER, 255)));
+                            MD3Theme.withAlpha(MD3Theme.isLightTheme() ? MD3Theme.SURFACE_CONTAINER_HIGH : MD3Theme.SURFACE_CONTAINER_HIGHEST, 255),
+                            0.0f, 3.0f, MD3Theme.withAlpha(channel.accent, 255),
+                            4.0f, 12.0f, 2.0f, MD3Theme.withAlpha(MD3Theme.ON_PRIMARY_CONTAINER, 255));
 
                     String valueText = focusedChannel == channel ? getDisplayBuffer() : Integer.toString(getChannelValue(channel));
                     buildValueBox(popup, localValueBounds, valueText, focusedChannel == channel, 255);
@@ -317,14 +314,14 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
 
     private void buildValueIndicator(UiTree.Scope scope, float anchorX, float rowTop, String valueText, float progress) {
         float textScale = 0.54f;
-        float bubbleWidth = textRenderer.textWidth(valueText, textScale, null) + 12.0f;
+        float bubbleWidth = textRenderer.getWidth(valueText, textScale) + 12.0f;
         float bubbleHeight = 16.0f;
         float bubbleX = anchorX - bubbleWidth / 2.0f;
         float bubbleY = rowTop - 14.0f - (1.0f - progress) * 4.0f;
         int bubbleAlpha = (int) (255 * progress);
         scope.roundRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight, 8.0f, MD3Theme.withAlpha(MD3Theme.INVERSE_SURFACE, bubbleAlpha));
-        float textY = bubbleY + (bubbleHeight - textRenderer.textHeight(textScale, null)) / 2.0f;
-        scope.text(valueText, bubbleX + (bubbleWidth - textRenderer.textWidth(valueText, textScale, null)) / 2.0f, textY, textScale, MD3Theme.withAlpha(MD3Theme.INVERSE_ON_SURFACE, bubbleAlpha));
+        float textY = bubbleY + (bubbleHeight - textRenderer.getHeight(textScale)) / 2.0f;
+        scope.text(valueText, bubbleX + (bubbleWidth - textRenderer.getWidth(valueText, textScale)) / 2.0f, textY, textScale, MD3Theme.withAlpha(MD3Theme.INVERSE_ON_SURFACE, bubbleAlpha));
     }
 
     private void buildValueBox(UiTree.Scope scope, UiRect bounds, String valueText, boolean focused, int alpha) {
@@ -335,13 +332,13 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
         scope.pushRelative(bounds, box -> {
             box.roundRect(0.0f, 0.0f, bounds.width(), bounds.height(), 6.0f, boxColor);
             float textScale = 0.52f;
-            float textWidth = textRenderer.textWidth(valueText, textScale, null);
-            float textHeight = textRenderer.textHeight(textScale, null);
+            float textWidth = textRenderer.getWidth(valueText, textScale);
+            float textHeight = textRenderer.getHeight(textScale);
             float textX = (bounds.width() - textWidth) / 2.0f;
             float textY = (bounds.height() - textHeight) / 2.0f;
             box.text(valueText, textX, textY, textScale, textColor);
             if (focused) {
-                float caretX = textX + textRenderer.textWidth(valueText.substring(0, Math.min(cursorIndex, valueText.length())), textScale, null);
+                float caretX = textX + textRenderer.getWidth(valueText.substring(0, Math.min(cursorIndex, valueText.length())), textScale);
                 box.rect(caretX, 3.0f, 1.0f, bounds.height() - 6.0f, MD3Theme.INVERSE_ON_SURFACE);
             }
         });
@@ -392,10 +389,10 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
 
     private int getCursorIndex(double mouseX, UiRect fieldBounds, String text) {
         float scale = 0.52f;
-        float textWidth = textRenderer.textWidth(text, scale, null);
+        float textWidth = textRenderer.getWidth(text, scale);
         float textStart = fieldBounds.x() + (fieldBounds.width() - textWidth) / 2.0f;
         for (int i = 0; i <= text.length(); i++) {
-            float width = textRenderer.textWidth(text.substring(0, i), scale, null);
+            float width = textRenderer.getWidth(text.substring(0, i), scale);
             if (mouseX <= textStart + width) {
                 return i;
             }
@@ -430,6 +427,7 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
 
     @Override
     public void close() {
+        textRenderer.close();
     }
 
 }

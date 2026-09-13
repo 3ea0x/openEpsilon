@@ -18,7 +18,7 @@ public class EnchantmentUtils {
     /**
      * 读取物品的附魔并写入目标映射。
      *
-     * @param itemStack 物品堆
+     * @param itemStack    物品堆
      * @param enchantments 附魔键或用于接收结果的附魔映射
      */
     public static void getEnchantments(ItemStack itemStack, Object2IntMap<Holder<Enchantment>> enchantments) {
@@ -38,7 +38,7 @@ public class EnchantmentUtils {
     /**
      * 获取指定附魔的等级。
      *
-     * @param itemStack 物品堆
+     * @param itemStack   物品堆
      * @param enchantment 附魔注册表键
      * @return 获取或计算得到的结果
      */
@@ -53,7 +53,7 @@ public class EnchantmentUtils {
      * 获取指定附魔的等级。
      *
      * @param itemEnchantments 已读取的附魔映射
-     * @param enchantment 附魔注册表键
+     * @param enchantment      附魔注册表键
      * @return 获取或计算得到的结果
      */
     public static int getEnchantmentLevel(Object2IntMap<Holder<Enchantment>> itemEnchantments, ResourceKey<Enchantment> enchantment) {
@@ -66,7 +66,7 @@ public class EnchantmentUtils {
     /**
      * 判断物品是否同时具有全部指定附魔。
      *
-     * @param itemStack 物品堆
+     * @param itemStack    物品堆
      * @param enchantments 附魔键或用于接收结果的附魔映射
      * @return 判断结果
      */
@@ -85,7 +85,7 @@ public class EnchantmentUtils {
     /**
      * 判断物品是否具有指定附魔。
      *
-     * @param itemStack 物品堆
+     * @param itemStack      物品堆
      * @param enchantmentKey 附魔注册表键
      * @return 判断结果
      */

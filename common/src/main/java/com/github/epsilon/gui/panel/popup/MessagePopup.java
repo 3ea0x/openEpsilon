@@ -1,10 +1,9 @@
 package com.github.epsilon.gui.panel.popup;
 
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -55,12 +54,13 @@ public class MessagePopup implements PanelPopupHost.Popup {
         buttonHoverAnimation.run(buttonBounds.contains(mouseX, mouseY) ? 1.0f : 0.0f);
         UiTree tree = UiTree.build(scope -> {
             UiRect popupBounds = new UiRect(bounds.x(), popupY, bounds.width(), bounds.height());
+            MD3Theme.submitGlassBlur(popupBounds.x(), popupBounds.y(), popupBounds.width(), popupBounds.height(), MD3Theme.CARD_RADIUS);
             scope.pushAbsolute(popupBounds, popup -> {
                 popup.popupCard(popupBounds.atOrigin(),
                         MD3Theme.CARD_RADIUS,
                         MD3Theme.POPUP_SHADOW_BLUR,
-                        EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress))),
-                        EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 255)));
+                        MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress)),
+                        MD3Theme.glassPopup(MD3Theme.SURFACE_CONTAINER_LOW));
 
                 float titleScale = 0.66f;
                 float messageScale = 0.56f;
@@ -77,8 +77,8 @@ public class MessagePopup implements PanelPopupHost.Popup {
                 float hover = buttonHoverAnimation.getValue();
                 UiRect localButtonBounds = buttonBounds.relativeTo(popupBounds);
                 popup.button(localButtonBounds, localButtonBounds.height() / 2.0f,
-                        EpsilonUiTheme.lumin(MD3Theme.lerp(MD3Theme.PRIMARY_CONTAINER, MD3Theme.PRIMARY, hover * 0.35f)),
-                        buttonLabel, 0.56f, EpsilonUiTheme.lumin(MD3Theme.ON_PRIMARY_CONTAINER));
+                        MD3Theme.lerp(MD3Theme.PRIMARY_CONTAINER, MD3Theme.PRIMARY, hover * 0.35f),
+                        buttonLabel, 0.56f, MD3Theme.ON_PRIMARY_CONTAINER);
             });
         });
         renderBatch.render(tree);

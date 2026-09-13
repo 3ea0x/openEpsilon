@@ -4,14 +4,18 @@ import com.github.epsilon.Constants;
 import com.github.epsilon.events.bus.EventBus;
 import com.github.epsilon.events.impl.*;
 import com.github.epsilon.graphics.LuminRenderSystem;
+import com.github.epsilon.graphics.video.VideoPlayer;
+import com.github.epsilon.gui.screen.MainMenuScreen;
+import com.github.epsilon.managers.sound.SoundKey;
+import com.github.epsilon.managers.sound.SoundManager;
 import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.player.MultiTask;
 import com.github.epsilon.modules.impl.player.UseCooldown;
 import com.github.epsilon.modules.impl.render.FreeCamera;
-import com.github.epsilon.modules.impl.render.HandsView;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
+import com.github.epsilon.modules.impl.render.HandView;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import me.sofurry.smtc.SmtcService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -32,9 +36,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Minecraft.class)
 public abstract class MixinMinecraft {
 
-    @Unique
-    private boolean epsilon$freeCameraSet = false;
-
     @Shadow
     private int rightClickDelay;
 
@@ -46,6 +47,23 @@ public abstract class MixinMinecraft {
 
     @Shadow
     public abstract void pick(float partialTicks);
+
+    @Unique
+    private boolean epsilon$freeCameraSet = false;
+
+    @Inject(method = "onGameLoadFinished", at = @At("TAIL"))
+    private void onGameLoadFinished(CallbackInfo ci) {
+        if (!ClientSetting.INSTANCE.showReisaOnStartup.getValue()) return;
+
+        if (ClientSetting.INSTANCE.useMainMenu.getValue()) {
+            MainMenuScreen.INSTANCE.queueReisaGreeting();
+        } else {
+            SoundManager.INSTANCE.playSound(
+                    SoundKey.REISA_WELCOME,
+                    ClientSetting.INSTANCE.reisaVolume.getValue().floatValue()
+            );
+        }
+    }
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void onPreTick(CallbackInfo info) {
@@ -59,18 +77,15 @@ public abstract class MixinMinecraft {
 
     @ModifyArg(method = "updateTitle", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/platform/Window;setTitle(Ljava/lang/String;)V"))
     private String onUpdateTitle(String title) {
-        return switch (ClientSetting.INSTANCE.customTitle.getValue()) {
-            case Vanilla -> title;
-            case Minecraft_1_8_9 -> "Minecraft 1.8.9";
-            case Epsilon -> Constants.NAME + " " + Constants.VERSION + " for " + title;
-        };
-    }
-
-    @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
-    private void onSetScreen(Screen screen, CallbackInfo ci) {
-        OpenScreenEvent event = EventBus.INSTANCE.post(new OpenScreenEvent(screen));
-        if (event.isCancelled()) {
-            ci.cancel();
+        ClientSetting.TitleMode mode = ClientSetting.INSTANCE.customTitle.getValue();
+        if (mode == ClientSetting.TitleMode.Vanilla) {
+            return title;
+        } else if (mode == ClientSetting.TitleMode.Minecraft_1_8_9) {
+            return "Minecraft 1.8.9";
+        } else if (mode == ClientSetting.TitleMode.Endfield) {
+            return "Endfield";
+        } else {
+            return Constants.NAME + " " + Constants.VERSION + " for " + title;
         }
     }
 
@@ -107,22 +122,22 @@ public abstract class MixinMinecraft {
 
     @WrapOperation(method = "continueAttack", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/LocalPlayer;isUsingItem()Z"))
     private boolean attackMultiTask(LocalPlayer instance, Operation<Boolean> original) {
-        return original.call(instance) && !MultiTask.INSTANCE.isEnabled();
+        return instance == null || (!MultiTask.INSTANCE.isEnabled() && original.call(instance));
     }
 
     @WrapOperation(method = "startUseItem", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/multiplayer/MultiPlayerGameMode;isDestroying()Z"))
     private boolean useMultiTask(MultiPlayerGameMode instance, Operation<Boolean> original) {
-        return original.call(instance) && !MultiTask.INSTANCE.isEnabled();
+        return !MultiTask.INSTANCE.isEnabled() && original.call(instance);
     }
 
     @Inject(method = "handleKeybinds", at = @At(value = "FIELD", target = "Lnet/minecraft/client/Options;keyUse:Lnet/minecraft/client/KeyMapping;", ordinal = 0, opcode = Opcodes.GETFIELD))
     private void onItemUseMouseHandle(CallbackInfo ci) {
-        HandsView handsView = HandsView.INSTANCE;
+        HandView handView = HandView.INSTANCE;
         Minecraft mc = (Minecraft) (Object) this;
-        if (handsView.isEnabled() && handsView.swingWhileUsing.getValue()
+        if (handView.isEnabled() && handView.swingWhileUsing.getValue()
                 && mc.options.keyAttack.isDown()
                 && mc.options.keyAttack.consumeClick()
-                && (!handsView.onlyOnBlock.getValue() || mc.hitResult.getType() == HitResult.Type.BLOCK)
+                && (!handView.onlyOnBlock.getValue() || mc.hitResult.getType() == HitResult.Type.BLOCK)
         ) {
             mc.player.swing(InteractionHand.MAIN_HAND, false); // Use this method can swing client side.
         }
@@ -135,10 +150,8 @@ public abstract class MixinMinecraft {
 
     @Inject(method = "close", at = @At("HEAD"))
     private void onClose(CallbackInfo ci) {
-        MinecraftUiRuntime2612 runtime = MinecraftUiRuntime2612.currentOrNull();
-        if (runtime != null) {
-            runtime.close();
-        }
+        SmtcService.INSTANCE.stop();
+        VideoPlayer.stop();
         LuminRenderSystem.destroyAll();
     }
 

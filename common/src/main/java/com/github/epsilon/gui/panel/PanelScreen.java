@@ -1,12 +1,13 @@
 package com.github.epsilon.gui.panel;
 
-import com.github.epsilon.gui.utils.UiCoordinateMapper;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.scene.UiLayer;
-import com.github.slmpc.lumingraphics.ui.scene.UiScene;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
+import com.github.epsilon.graphics.LuminRenderSystem;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.graphics.text.ttf.TtfFontLoader;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.scene.UiLayer;
+import com.github.epsilon.gui.lib.scene.UiScene;
 import com.github.epsilon.gui.panel.input.PanelInputRouter;
 import com.github.epsilon.gui.panel.popup.PanelPopupHost;
 import com.github.epsilon.gui.panel.utils.IMEFocusHelper;
@@ -16,7 +17,8 @@ import com.github.epsilon.gui.panel.view.ModuleDetailPanel;
 import com.github.epsilon.gui.panel.view.ModuleListPanel;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.holders.TranslateHolder;
+import com.github.epsilon.gui.utils.ModuleTooltip;
+import com.github.epsilon.managers.TranslationManager;
 import com.github.epsilon.modules.impl.ClientSetting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.IMEPreeditOverlay;
@@ -30,7 +32,7 @@ import net.minecraft.network.chat.Component;
 /**
  * 面板 UI 的主屏幕宿主。
  * <p>
- * 它负责维护全局状态，并在 Minecraft UI runtime 的统一 scene 帧中调度各子面板，
+ * 它负责维护全局状态、调度各子面板的 extract 阶段、统一 flush renderer，
  * 并将输入事件路由到 rail、模块列表、详情面板、客户端设置面板和弹窗宿主。
  */
 public class PanelScreen extends Screen {
@@ -39,15 +41,15 @@ public class PanelScreen extends Screen {
 
     private final PanelState state = new PanelState();
     private final PanelDirtyState dirtyState = new PanelDirtyState();
-    private UiTextMetrics textMetrics;
-    private UiScene scene;
-    private MinecraftUiRuntime2612 sceneRuntime;
+    private final TextRenderer textRenderer = TextRenderer.create();
+    private final UiTextMetrics uiTextMetrics = new PanelTextMetrics();
+    private final UiScene scene = new UiScene(EpsilonUiTheme.INSTANCE);
     private final PanelPopupHost popupHost = new PanelPopupHost();
     private final PanelInputRouter inputRouter = new PanelInputRouter();
-    private CategoryRailPanel categoryRailPanel;
-    private ModuleListPanel moduleListPanel;
-    private ModuleDetailPanel moduleDetailPanel;
-    private ClientSettingPanel clientSettingPanel;
+    private final CategoryRailPanel categoryRailPanel = new CategoryRailPanel(state, textRenderer);
+    private final ModuleListPanel moduleListPanel = new ModuleListPanel(state, textRenderer);
+    private final ModuleDetailPanel moduleDetailPanel = new ModuleDetailPanel(state, textRenderer, popupHost);
+    private final ClientSettingPanel clientSettingPanel = new ClientSettingPanel(state, textRenderer, popupHost);
     private int lastWidth = -1;
     private int lastHeight = -1;
     private String lastSelectedCategory = "";
@@ -59,6 +61,8 @@ public class PanelScreen extends Screen {
     private long lastI18nRevision = Long.MIN_VALUE;
 
     private IMEPreeditOverlay preeditOverlay;
+
+    private LuminRenderSystem.LuminRenderTarget renderTarget;
 
     private PanelScreen() {
         super(Component.literal("PanelGui"));
@@ -73,39 +77,19 @@ public class PanelScreen extends Screen {
      * 提取面板当前帧的渲染状态。
      * <p>
      * 该方法会计算布局、推动动画、让各个子面板把 UI 编译进共享批次，
-     * 最后由 runtime 统一提交 scene。
+     * 最后在统一的 render 提交阶段执行 flush。
      */
     @Override
     public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
-
-        MinecraftUiRuntime2612 runtime = MinecraftUiRuntime2612.current();
-        ClientSetting.INSTANCE.configureMinecraftFonts(runtime);
-        int epsilonMouseX = UiCoordinateMapper.toProjectionX(mouseX);
-        int epsilonMouseY = UiCoordinateMapper.toProjectionY(mouseY);
-        if (scene == null || sceneRuntime != runtime) {
-            releaseScene();
-            scene = runtime.createScene(EpsilonUiTheme.lumin());
-            sceneRuntime = runtime;
-            textMetrics = runtime.textMetrics();
-            categoryRailPanel = new CategoryRailPanel(state, textMetrics);
-            moduleListPanel = new ModuleListPanel(state, textMetrics);
-            moduleDetailPanel = new ModuleDetailPanel(state, textMetrics, popupHost);
-            clientSettingPanel = new ClientSettingPanel(state, textMetrics, popupHost);
+        final var window = minecraft.getWindow();
+        if (renderTarget == null) {
+            renderTarget = LuminRenderSystem.LuminRenderTarget.create("click-gui", window.getWidth(), window.getHeight());
         }
+        renderTarget.clear();
+        renderTarget.resize(window.getWidth(), window.getHeight());
 
-        runtime.render(scene, activeScene -> extractPanelFrame(guiGraphics, activeScene,
-                epsilonMouseX, epsilonMouseY, partialTick));
-
-        if (preeditOverlay != null) {
-            this.preeditOverlay.updateInputPosition(
-                    (int) UiCoordinateMapper.toMinecraftX(IMEFocusHelper.activeCursorX),
-                    (int) UiCoordinateMapper.toMinecraftY(IMEFocusHelper.activeCursorY));
-            guiGraphics.setPreeditOverlay(this.preeditOverlay);
-        }
-        popupHost.extractOverlay(guiGraphics, epsilonMouseX, epsilonMouseY, partialTick);
-    }
-
-    private void extractPanelFrame(GuiGraphicsExtractor guiGraphics, UiScene scene, int mouseX, int mouseY, float partialTick) {
+        LuminRenderSystem.setActiveTarget(renderTarget);
+        scene.beginFrame();
 
         String currentCategory = state.getSelectedCategory().name();
         String currentModule = state.getSelectedModule() == null ? "" : state.getSelectedModule().getName();
@@ -113,7 +97,7 @@ public class PanelScreen extends Screen {
         ClientSetting.ModuleSort currentModuleSort = ClientSetting.INSTANCE.moduleSort.getValue();
         boolean sidebarExpanded = state.isSidebarExpanded();
         boolean clientSettingMode = state.isClientSettingMode();
-        long currentI18nRevision = TranslateHolder.INSTANCE.getRevision();
+        long currentI18nRevision = TranslationManager.INSTANCE.getRevision();
         if (!lastSelectedCategory.equals(currentCategory)
                 || !lastSelectedModule.equals(currentModule)
                 || !lastSearchQuery.equals(currentQuery)
@@ -138,12 +122,10 @@ public class PanelScreen extends Screen {
             dirtyState.markAllDirty();
         }
 
-        int uiWidth = UiCoordinateMapper.getProjectionWidthInt();
-        int uiHeight = UiCoordinateMapper.getProjectionHeightInt();
-        if (uiWidth != lastWidth || uiHeight != lastHeight) {
+        if (width != lastWidth || height != lastHeight) {
             dirtyState.markLayoutDirty();
-            lastWidth = uiWidth;
-            lastHeight = uiHeight;
+            lastWidth = width;
+            lastHeight = height;
         }
 
         if (dirtyState.consumeModuleListDirty()) {
@@ -157,12 +139,13 @@ public class PanelScreen extends Screen {
         }
 
         float railWidth = categoryRailPanel.getAnimatedWidth();
-        PanelLayout.Layout layout = PanelLayout.compute(uiWidth, uiHeight, railWidth);
+        PanelLayout.Layout layout = PanelLayout.compute(LuminRenderSystem.getScaledWidthInt(), LuminRenderSystem.getScaledHeightInt(), railWidth);
         popupHost.setOverlayBounds(layout.panel());
 
         drawChrome(layout);
-        int epsilonMouseX = mouseX;
-        int epsilonMouseY = mouseY;
+        int epsilonMouseX = LuminRenderSystem.toEpsilonMouseX(mouseX);
+        int epsilonMouseY = LuminRenderSystem.toEpsilonMouseY(mouseY);
+        ModuleTooltip.clear();
         boolean popupActive = popupHost.getActivePopup() != null;
         int panelMouseX = popupActive ? Integer.MIN_VALUE : epsilonMouseX;
         int panelMouseY = popupActive ? Integer.MIN_VALUE : epsilonMouseY;
@@ -179,33 +162,63 @@ public class PanelScreen extends Screen {
             moduleDetailPanel.render(guiGraphics, scene.batch(UiLayer.CONTENT, 20), layout.detail(), panelMouseX, panelMouseY, partialTick);
         }
 
+        // 悬停描述提示提交到最高层，本帧请求在此消费后随 scene.flush() 一起绘制。
+        scene.submit(UiLayer.OVERLAY, UiTree.build(scope -> ModuleTooltip.render(scope, uiTextMetrics,
+                LuminRenderSystem.getScaledWidth(), LuminRenderSystem.getScaledHeight())));
+
+        scene.flush();
+        flushQueuedContentBuffers();
+        scene.clear();
         renderPopup(guiGraphics, epsilonMouseX, epsilonMouseY, partialTick);
+
+        LuminRenderSystem.setActiveTarget(null);
+
+        if (preeditOverlay != null) {
+            this.preeditOverlay.updateInputPosition((int) IMEFocusHelper.activeCursorX, (int) IMEFocusHelper.activeCursorY);
+            guiGraphics.setPreeditOverlay(this.preeditOverlay);
+        }
+        guiGraphics.blit(renderTarget.getIdentifier(), 0, 0, window.getGuiScaledWidth(), window.getGuiScaledHeight(), 0, 1, 1, 0);
+        popupHost.extractOverlay(guiGraphics, epsilonMouseX, epsilonMouseY, partialTick);
     }
 
     private void drawChrome(PanelLayout.Layout layout) {
+        UiRect panel = layout.panel();
+        // 面板与分区都是玻璃表面：先对同一区域模糊背景，再记录玻璃着色与边缘高光。
+        // 两者构成 GUI 窗口背景层，统一按 Background Opacity 缩放；其上的内容层不受影响。
+        MD3Theme.submitGlassBlur(panel.x(), panel.y(), panel.width(), panel.height(), MD3Theme.PANEL_RADIUS);
         UiTree tree = UiTree.build(scope -> {
-            scope.pushAbsolute(layout.panel(), panel -> {
-                panel.shadow(0.0f, 0.0f, layout.panel().width(), layout.panel().height(),
+            scope.pushAbsolute(panel, chrome -> {
+                chrome.shadow(0.0f, 0.0f, panel.width(), panel.height(),
                         MD3Theme.PANEL_RADIUS, MD3Theme.PANEL_SHADOW_BLUR,
                         MD3Theme.withAlpha(MD3Theme.SHADOW, MD3Theme.PANEL_SHADOW_ALPHA));
-                panel.roundRect(0.0f, 0.0f, layout.panel().width(), layout.panel().height(),
-                        MD3Theme.PANEL_RADIUS, MD3Theme.SURFACE);
+                chrome.roundRect(0.0f, 0.0f, panel.width(), panel.height(),
+                        MD3Theme.PANEL_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassPane(MD3Theme.SURFACE)));
+                MD3Theme.glassRim(chrome, 0.0f, 0.0f, panel.width(), panel.height(), MD3Theme.PANEL_RADIUS);
             });
             scope.pushAbsolute(layout.rail(), rail -> rail.roundRect(0.0f, 0.0f, layout.rail().width(), layout.rail().height(),
-                    MD3Theme.SECTION_RADIUS, MD3Theme.SURFACE_DIM));
+                    MD3Theme.SECTION_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassSection(MD3Theme.SURFACE_DIM))));
             if (state.isClientSettingMode()) {
                 float csW = layout.detail().right() - layout.modules().x();
                 float csH = layout.modules().height();
                 scope.pushAbsolute(layout.modules().x(), layout.modules().y(), clientSettings ->
-                        clientSettings.roundRect(0.0f, 0.0f, csW, csH, MD3Theme.SECTION_RADIUS, MD3Theme.SURFACE_DIM));
+                        clientSettings.roundRect(0.0f, 0.0f, csW, csH, MD3Theme.SECTION_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassSection(MD3Theme.SURFACE_DIM))));
             } else {
                 scope.pushAbsolute(layout.modules(), modules -> modules.roundRect(0.0f, 0.0f, layout.modules().width(), layout.modules().height(),
-                        MD3Theme.SECTION_RADIUS, MD3Theme.SURFACE_DIM));
+                        MD3Theme.SECTION_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassSection(MD3Theme.SURFACE_DIM))));
                 scope.pushAbsolute(layout.detail(), detail -> detail.roundRect(0.0f, 0.0f, layout.detail().width(), layout.detail().height(),
-                        MD3Theme.SECTION_RADIUS, MD3Theme.SURFACE_DIM));
+                        MD3Theme.SECTION_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassSection(MD3Theme.SURFACE_DIM))));
             }
         });
         scene.submit(UiLayer.CHROME, -20, tree);
+    }
+
+    private void flushQueuedContentBuffers() {
+        if (state.isClientSettingMode()) {
+            clientSettingPanel.flushContent();
+        } else {
+            moduleListPanel.flushContent();
+            moduleDetailPanel.flushContent();
+        }
     }
 
     private void renderPopup(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
@@ -213,12 +226,21 @@ public class PanelScreen extends Screen {
             return;
         }
         popupHost.render(guiGraphics, scene.batch(UiLayer.POPUP), mouseX, mouseY, partialTick);
+        scene.flush();
+        popupHost.flush();
+        scene.clear();
     }
 
+    public PanelScreen openClientSettings() {
+        state.setClientSettingMode(true);
+        state.setClientSettingTab(PanelState.ClientSettingTab.GENERAL);
+        dirtyState.markAllDirty();
+        return this;
+    }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean isDoubleClick) {
-        MouseButtonEvent epsilonEvent = UiCoordinateMapper.toProjectionEvent(event);
+        MouseButtonEvent epsilonEvent = LuminRenderSystem.toEpsilonMouseEvent(event);
         double mouseX = epsilonEvent.x();
         double mouseY = epsilonEvent.y();
         if (event.button() != 0) {
@@ -241,12 +263,9 @@ public class PanelScreen extends Screen {
                     || super.mouseClicked(epsilonEvent, isDoubleClick);
         }
 
-        PanelLayout.Layout layout = PanelLayout.compute(
-                UiCoordinateMapper.getProjectionWidthInt(),
-                UiCoordinateMapper.getProjectionHeightInt(),
-                categoryRailPanel.getAnimatedWidth());
+        PanelLayout.Layout layout = PanelLayout.compute(LuminRenderSystem.getScaledWidthInt(), LuminRenderSystem.getScaledHeightInt(), categoryRailPanel.getAnimatedWidth());
         if (!layout.panel().contains(mouseX, mouseY)) {
-            if (ClientSetting.INSTANCE.closeOnOutside.getValue()) minecraft.setScreen(null);
+            if (ClientSetting.INSTANCE.closeOnOutside.getValue()) minecraft.gui.setScreen(null);
             return true;
         }
         if (!state.isClientSettingMode()) {
@@ -259,18 +278,10 @@ public class PanelScreen extends Screen {
         return handled || super.mouseClicked(epsilonEvent, isDoubleClick);
     }
 
-    private void releaseScene() {
-        UiScene previous = scene;
-        scene = null;
-        sceneRuntime = null;
-        textMetrics = null;
-        if (previous != null) previous.close();
-    }
-
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        double epsilonMouseX = UiCoordinateMapper.toProjectionX(mouseX);
-        double epsilonMouseY = UiCoordinateMapper.toProjectionY(mouseY);
+        double epsilonMouseX = LuminRenderSystem.toEpsilonMouseX(mouseX);
+        double epsilonMouseY = LuminRenderSystem.toEpsilonMouseY(mouseY);
         if (popupHost.mouseScrolled(epsilonMouseX, epsilonMouseY, scrollX, scrollY)) {
             dirtyState.markAllDirty();
             return true;
@@ -295,7 +306,7 @@ public class PanelScreen extends Screen {
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
-        MouseButtonEvent epsilonEvent = UiCoordinateMapper.toProjectionEvent(event);
+        MouseButtonEvent epsilonEvent = LuminRenderSystem.toEpsilonMouseEvent(event);
         if (inputRouter.routeMouseReleased(epsilonEvent, popupHost, moduleDetailPanel, moduleListPanel, clientSettingPanel, state.isClientSettingMode())) {
             dirtyState.markAllDirty();
             return true;
@@ -304,16 +315,15 @@ public class PanelScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
-        MouseButtonEvent epsilonEvent = UiCoordinateMapper.toProjectionEvent(event);
-        double epsilonDeltaX = UiCoordinateMapper.toProjectionX(deltaX);
-        double epsilonDeltaY = UiCoordinateMapper.toProjectionY(deltaY);
-        if (inputRouter.routeMouseDragged(epsilonEvent, epsilonDeltaX, epsilonDeltaY,
-                popupHost, moduleDetailPanel, moduleListPanel, clientSettingPanel, state.isClientSettingMode())) {
+    public boolean mouseDragged(MouseButtonEvent event, double mouseX, double mouseY) {
+        MouseButtonEvent epsilonEvent = LuminRenderSystem.toEpsilonMouseEvent(event);
+        double epsilonMouseX = LuminRenderSystem.toEpsilonMouseX(mouseX);
+        double epsilonMouseY = LuminRenderSystem.toEpsilonMouseY(mouseY);
+        if (inputRouter.routeMouseDragged(epsilonEvent, epsilonMouseX, epsilonMouseY, popupHost, moduleDetailPanel, moduleListPanel, clientSettingPanel, state.isClientSettingMode())) {
             dirtyState.markAllDirty();
             return true;
         }
-        return super.mouseDragged(epsilonEvent, epsilonDeltaX, epsilonDeltaY);
+        return super.mouseDragged(epsilonEvent, epsilonMouseX, epsilonMouseY);
     }
 
     @Override
@@ -354,14 +364,47 @@ public class PanelScreen extends Screen {
     public void removed() {
         super.removed();
         popupHost.close();
-        releaseScene();
         moduleListPanel.resetTransientState();
+        state.setSearchQuery("");
         moduleDetailPanel.resetTransientState();
         clientSettingPanel.resetTransientState();
         state.setListeningKeyBindModule(null);
         state.setListeningKeybindSetting(null);
         IMEFocusHelper.forceDeactivate();
         preeditOverlay = null;
+    }
+
+    /**
+     * 返回当前面板使用的离屏渲染目标。
+     *
+     * @return 当前渲染目标；首次渲染前可能为 {@code null}
+     */
+    public LuminRenderSystem.LuminRenderTarget getRenderTarget() {
+        return renderTarget;
+    }
+
+    /** 把面板使用的 {@link TextRenderer} 适配成布局代码要求的文本度量接口。 */
+    private final class PanelTextMetrics implements UiTextMetrics {
+
+        @Override
+        public float textWidth(String text, float scale) {
+            return textRenderer.getWidth(text, scale);
+        }
+
+        @Override
+        public float textWidth(String text, float scale, TtfFontLoader fontLoader) {
+            return textRenderer.getWidth(text, scale, fontLoader);
+        }
+
+        @Override
+        public float textHeight(float scale) {
+            return textRenderer.getHeight(scale);
+        }
+
+        @Override
+        public float textHeight(float scale, TtfFontLoader fontLoader) {
+            return textRenderer.getHeight(scale, fontLoader);
+        }
     }
 
 }

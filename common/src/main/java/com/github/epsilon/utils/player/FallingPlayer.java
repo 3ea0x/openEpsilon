@@ -27,15 +27,15 @@ public class FallingPlayer {
     /**
      * 创建玩家下落轨迹模拟器。
      *
-     * @param x X 坐标
-     * @param y Y 坐标
-     * @param z Z 坐标
-     * @param motionX X 轴初始速度
-     * @param motionY Y 轴初始速度
-     * @param motionZ Z 轴初始速度
-     * @param yaw 偏航角
-     * @param strafe 横移输入
-     * @param forward 前进输入
+     * @param x                  X 坐标
+     * @param y                  Y 坐标
+     * @param z                  Z 坐标
+     * @param motionX            X 轴初始速度
+     * @param motionY            Y 轴初始速度
+     * @param motionZ            Z 轴初始速度
+     * @param yaw                偏航角
+     * @param strafe             横移输入
+     * @param forward            前进输入
      * @param jumpMovementFactor 水平移动加速度系数
      */
     public FallingPlayer(double x, double y, double z, double motionX, double motionY, double motionZ, float yaw, float strafe, float forward, float jumpMovementFactor) {
@@ -111,10 +111,11 @@ public class FallingPlayer {
      *
      * @param ticks 模拟的 tick 数
      */
-    public void calculate(int ticks) {
+    public FallingPlayer calculate(int ticks) {
         for (int i = 0; i < ticks; i++) {
             calculateForTick();
         }
+        return this;
     }
 
     /**

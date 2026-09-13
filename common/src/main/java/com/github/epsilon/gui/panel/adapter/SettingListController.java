@@ -1,15 +1,14 @@
 package com.github.epsilon.gui.panel.adapter;
 
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.gui.panel.component.SettingRow;
 import com.github.epsilon.gui.panel.component.setting.*;
 import com.github.epsilon.gui.panel.popup.*;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.managers.Managers;
-import com.github.epsilon.managers.impl.sound.SoundKey;
+import com.github.epsilon.managers.sound.SoundKey;
+import com.github.epsilon.managers.sound.SoundManager;
 import com.github.epsilon.settings.Setting;
 import com.github.epsilon.settings.SettingLayoutPlanner;
 import com.github.epsilon.utils.render.animation.Animation;
@@ -18,8 +17,8 @@ import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.input.PreeditEvent;
-import org.jspecify.annotations.Nullable;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,11 +28,14 @@ public class SettingListController implements AutoCloseable {
 
     private static final float GROUP_HEADER_HEIGHT = 30.0f;
     private static final float GROUP_ROW_INSET = 4.0f;
+    private static final float GROUP_NEST_INSET = 8.0f;
+    private static final float GROUP_MIN_WIDTH = 72.0f;
+    private static final int GROUP_DEPTH_LIMIT = 3;
     private static final float GROUP_OUTLINE_INSET = 1.0f;
     private static final float GROUP_COUNT_CHIP_HEIGHT = 14.0f;
 
     private final PanelPopupHost popupHost;
-    private final UiTextMetrics measureTextRenderer = MinecraftUiRuntime2612.current().textMetrics();
+    private final TextRenderer measureTextRenderer = TextRenderer.create();
     private final Map<Setting<?>, SettingRow<?>> rowCache = new HashMap<>();
     private final Map<String, Animation> sectionHoverAnimations = new HashMap<>();
     private final Map<String, Animation> sectionExpandAnimations = new HashMap<>();
@@ -42,7 +44,6 @@ public class SettingListController implements AutoCloseable {
 
     private SettingEntry draggingSliderEntry;
     private EnumSettingRow activeEnumRow;
-    private ChoiceSettingRow activeChoiceRow;
 
     public SettingListController(PanelPopupHost popupHost) {
         this.popupHost = popupHost;
@@ -62,10 +63,8 @@ public class SettingListController implements AutoCloseable {
 
     public void prepareLayout(String ownerKey, List<Setting<?>> settings) {
         closeRowsNotIn(settings);
-        List<String> visibleSections = buildSections(ownerKey, settings).stream()
-                .filter(SettingLayoutPlanner.Section::hasHeader)
-                .map(SettingLayoutPlanner.Section::key)
-                .toList();
+        List<String> visibleSections = new ArrayList<>();
+        collectSectionKeys(buildSections(ownerKey, settings), visibleSections);
         sectionHoverAnimations.keySet().removeIf(key -> !visibleSections.contains(key));
         sectionExpandAnimations.keySet().removeIf(key -> !visibleSections.contains(key));
         settingEntries.clear();
@@ -98,13 +97,13 @@ public class SettingListController implements AutoCloseable {
     }
 
     public void layoutRows(List<Setting<?>> settings, UiRect viewport, float scroll, float rowWidth,
-                           UiTree.Scope scope, UiTextMetrics textRenderer, int mouseX, int mouseY,
+                           UiTree.Scope scope, TextRenderer textRenderer, int mouseX, int mouseY,
                            RowRenderCallback callback) {
         layoutRows(null, settings, viewport, scroll, rowWidth, scope, textRenderer, mouseX, mouseY, callback);
     }
 
     public void layoutRows(String ownerKey, List<Setting<?>> settings, UiRect viewport, float scroll, float rowWidth,
-                           UiTree.Scope scope, UiTextMetrics textRenderer, int mouseX, int mouseY,
+                           UiTree.Scope scope, TextRenderer textRenderer, int mouseX, int mouseY,
                            RowRenderCallback callback) {
         prepareLayout(ownerKey, settings);
 
@@ -112,48 +111,24 @@ public class SettingListController implements AutoCloseable {
             activeEnumRow.setDropdownOpen(false);
             activeEnumRow = null;
         }
-        if (activeChoiceRow != null && popupHost.getActivePopup() == null) {
-            activeChoiceRow.setDropdownOpen(false);
-            activeChoiceRow = null;
-        }
 
         appendRows(ownerKey, settings, viewport, scroll, rowWidth, scope, textRenderer, mouseX, mouseY, callback);
     }
 
     public void appendRows(List<Setting<?>> settings, UiRect viewport, float scroll, float rowWidth,
-                           UiTree.Scope scope, UiTextMetrics textRenderer, int mouseX, int mouseY,
+                           UiTree.Scope scope, TextRenderer textRenderer, int mouseX, int mouseY,
                            RowRenderCallback callback) {
         appendRows(null, settings, viewport, scroll, rowWidth, scope, textRenderer, mouseX, mouseY, callback);
     }
 
     public void appendRows(String ownerKey, List<Setting<?>> settings, UiRect viewport, float scroll, float rowWidth,
-                           UiTree.Scope scope, UiTextMetrics textRenderer, int mouseX, int mouseY,
+                           UiTree.Scope scope, TextRenderer textRenderer, int mouseX, int mouseY,
                            RowRenderCallback callback) {
         float rowY = viewport.y() - scroll;
         for (SettingLayoutPlanner.Section section : buildSections(ownerKey, settings)) {
             if (section.hasHeader()) {
-                UiRect sectionBounds = new UiRect(viewport.x(), rowY, rowWidth, getSectionHeight(section));
-                UiRect headerBounds = new UiRect(sectionBounds.x(), sectionBounds.y(), sectionBounds.width(), GROUP_HEADER_HEIGHT);
-                sectionEntries.add(new SectionEntry(section, headerBounds));
-                buildSectionCard(scope, textRenderer, section, sectionBounds, headerBounds, mouseX, mouseY);
-
-                if (!section.isCollapsed()) {
-                    float childY = sectionBounds.y() + GROUP_HEADER_HEIGHT + GROUP_ROW_INSET;
-                    float childWidth = Math.max(0.0f, sectionBounds.width() - GROUP_ROW_INSET * 2.0f);
-                    for (Setting<?> setting : section.settings()) {
-                        SettingRow<?> row = rowCache.computeIfAbsent(setting, SettingViewFactory::create);
-                        if (row == null) {
-                            continue;
-                        }
-
-                        UiRect rowBounds = new UiRect(sectionBounds.x() + GROUP_ROW_INSET, childY, childWidth, row.getHeight());
-                        settingEntries.add(new SettingEntry(row, rowBounds));
-                        callback.render(setting, row, rowBounds);
-                        childY += row.getHeight() + MD3Theme.ROW_GAP;
-                    }
-                }
-
-                rowY += sectionBounds.height() + MD3Theme.ROW_GAP;
+                rowY += appendGroupSection(scope, textRenderer, section, viewport.x(), rowY, rowWidth, 0,
+                        mouseX, mouseY, callback) + MD3Theme.ROW_GAP;
                 continue;
             }
 
@@ -170,6 +145,50 @@ public class SettingListController implements AutoCloseable {
         }
     }
 
+    /**
+     * 递归渲染分组卡片：卡片覆盖组头与子内容，嵌套分组在父卡片内容区内继续缩进。
+     *
+     * @return 该分组卡片的高度
+     */
+    private float appendGroupSection(UiTree.Scope scope, TextRenderer textRenderer, SettingLayoutPlanner.Section section,
+                                     float x, float y, float width, int depth, int mouseX, int mouseY,
+                                     RowRenderCallback callback) {
+        float nest = groupNestInset(depth, width);
+        float cardX = x + nest;
+        float cardWidth = Math.max(1.0f, width - nest * 2.0f);
+        UiRect sectionBounds = new UiRect(cardX, y, cardWidth, getSectionHeight(section));
+        UiRect headerBounds = new UiRect(cardX, y, cardWidth, GROUP_HEADER_HEIGHT);
+        sectionEntries.add(new SectionEntry(section, headerBounds));
+        buildSectionCard(scope, textRenderer, section, sectionBounds, headerBounds, depth, mouseX, mouseY);
+
+        if (section.isCollapsed()) {
+            return sectionBounds.height();
+        }
+
+        float innerX = cardX + GROUP_ROW_INSET;
+        float innerWidth = Math.max(1.0f, cardWidth - GROUP_ROW_INSET * 2.0f);
+        float cursor = y + GROUP_HEADER_HEIGHT + GROUP_ROW_INSET;
+        for (SettingLayoutPlanner.Section.Element element : section.elements()) {
+            switch (element) {
+                case SettingLayoutPlanner.Section.SettingElement settingElement -> {
+                    Setting<?> setting = settingElement.setting();
+                    SettingRow<?> row = rowCache.computeIfAbsent(setting, SettingViewFactory::create);
+                    if (row == null) {
+                        continue;
+                    }
+                    UiRect rowBounds = new UiRect(innerX, cursor, innerWidth, row.getHeight());
+                    settingEntries.add(new SettingEntry(row, rowBounds));
+                    callback.render(setting, row, rowBounds);
+                    cursor += row.getHeight() + MD3Theme.ROW_GAP;
+                }
+                case SettingLayoutPlanner.Section.GroupElement groupElement ->
+                        cursor += appendGroupSection(scope, textRenderer, groupElement.section(), innerX, cursor,
+                                innerWidth, depth + 1, mouseX, mouseY, callback) + MD3Theme.ROW_GAP;
+            }
+        }
+        return sectionBounds.height();
+    }
+
     public boolean mouseClicked(MouseButtonEvent event, boolean isDoubleClick, UiRect popupBounds) {
         return mouseClicked(event, isDoubleClick, popupBounds, null);
     }
@@ -184,7 +203,7 @@ public class SettingListController implements AutoCloseable {
             if (entry.bounds().contains(event.x(), event.y())) {
                 entry.section().toggleCollapsed();
                 draggingSliderEntry = null;
-                Managers.SOUND.playInUi(entry.section().isCollapsed() ? SoundKey.SETTINGS_CLOSE : SoundKey.SETTINGS_OPEN);
+                SoundManager.INSTANCE.playInUi(entry.section().isCollapsed() ? SoundKey.SETTINGS_CLOSE : SoundKey.SETTINGS_OPEN);
                 return true;
             }
         }
@@ -209,14 +228,6 @@ public class SettingListController implements AutoCloseable {
                     activeEnumRow.setDropdownOpen(false);
                 }
                 activeEnumRow = enumRow;
-                draggingSliderEntry = null;
-                return true;
-            }
-            if (entry.row instanceof ChoiceSettingRow choiceRow && entry.row.mouseClicked(entry.bounds, event, isDoubleClick)) {
-                popupHost.open(createChoicePopup(choiceRow, entry.bounds, popupBounds));
-                choiceRow.setDropdownOpen(true);
-                if (activeChoiceRow != null && activeChoiceRow != choiceRow) activeChoiceRow.setDropdownOpen(false);
-                activeChoiceRow = choiceRow;
                 draggingSliderEntry = null;
                 return true;
             }
@@ -289,7 +300,7 @@ public class SettingListController implements AutoCloseable {
         return false;
     }
 
-    public boolean preeditUpdated(@Nullable PreeditEvent event) {
+    public boolean preeditUpdated(PreeditEvent event) {
         for (SettingEntry entry : settingEntries) {
             if (entry.row.preeditUpdated(event)) {
                 return true;
@@ -316,10 +327,6 @@ public class SettingListController implements AutoCloseable {
             activeEnumRow.setDropdownOpen(false);
             activeEnumRow = null;
         }
-        if (activeChoiceRow != null) {
-            activeChoiceRow.setDropdownOpen(false);
-            activeChoiceRow = null;
-        }
     }
 
     public void resetTransientState() {
@@ -333,6 +340,7 @@ public class SettingListController implements AutoCloseable {
     @Override
     public void close() {
         clearAll();
+        measureTextRenderer.close();
     }
 
     public boolean hasActiveAnimations() {
@@ -340,8 +348,8 @@ public class SettingListController implements AutoCloseable {
                 || sectionExpandAnimations.values().stream().anyMatch(animation -> !animation.isFinished());
     }
 
-    private void buildSectionCard(UiTree.Scope scope, UiTextMetrics textRenderer, SettingLayoutPlanner.Section section,
-                                  UiRect groupBounds, UiRect headerBounds, int mouseX, int mouseY) {
+    private void buildSectionCard(UiTree.Scope scope, TextRenderer textRenderer, SettingLayoutPlanner.Section section,
+                                  UiRect groupBounds, UiRect headerBounds, int depth, int mouseX, int mouseY) {
         Animation hoverAnimation = sectionHoverAnimations.computeIfAbsent(section.key(), ignored -> createAnimation(120L, 0.0f));
         Animation expandAnimation = sectionExpandAnimations.computeIfAbsent(section.key(), ignored -> createAnimation(180L, section.isCollapsed() ? 0.0f : 1.0f));
         float hoverProgress = scope.animate(hoverAnimation, headerBounds.contains(mouseX, mouseY));
@@ -349,14 +357,14 @@ public class SettingListController implements AutoCloseable {
 
         scope.pushAbsolute(groupBounds, group -> {
             UiRect localHeader = headerBounds.relativeTo(groupBounds);
-            group.roundRect(0.0f, 0.0f, groupBounds.width(), groupBounds.height(), MD3Theme.CARD_RADIUS, MD3Theme.OUTLINE_SOFT);
+            group.roundRect(0.0f, 0.0f, groupBounds.width(), groupBounds.height(), MD3Theme.CARD_RADIUS, groupOutline(depth));
             group.roundRect(
                     GROUP_OUTLINE_INSET,
                     GROUP_OUTLINE_INSET,
                     groupBounds.width() - GROUP_OUTLINE_INSET * 2.0f,
                     groupBounds.height() - GROUP_OUTLINE_INSET * 2.0f,
                     Math.max(1.0f, MD3Theme.CARD_RADIUS - GROUP_OUTLINE_INSET),
-                    MD3Theme.lerp(MD3Theme.SURFACE_CONTAINER_LOW, MD3Theme.SURFACE_CONTAINER, expandProgress)
+                    MD3Theme.lerp(groupSurface(depth), MD3Theme.SURFACE_CONTAINER, expandProgress)
             );
             if (hoverProgress > 0.01f) {
                 group.roundRect(localHeader.x(), localHeader.y(), localHeader.width(), localHeader.height(), MD3Theme.CARD_RADIUS,
@@ -365,19 +373,19 @@ public class SettingListController implements AutoCloseable {
 
             float labelScale = 0.66f;
             String label = trimToWidth(section.title(), labelScale, headerBounds.width() - 74.0f, textRenderer);
-            float labelY = localHeader.y() + (GROUP_HEADER_HEIGHT - textRenderer.textHeight(labelScale, null)) / 2.0f;
+            float labelY = localHeader.y() + (GROUP_HEADER_HEIGHT - textRenderer.getHeight(labelScale)) / 2.0f;
             group.text(label, localHeader.x() + MD3Theme.ROW_CONTENT_INSET + 2.0f, labelY, labelScale, MD3Theme.TEXT_PRIMARY);
 
-            String countLabel = Integer.toString(section.settings().size());
+            String countLabel = Integer.toString(section.totalSettingCount());
             float countScale = 0.46f;
-            float countWidth = textRenderer.textWidth(countLabel, countScale, null) + 10.0f;
+            float countWidth = textRenderer.getWidth(countLabel, countScale) + 10.0f;
             float countX = localHeader.x() + localHeader.width() - MD3Theme.ROW_TRAILING_INSET - 20.0f - countWidth;
             float countY = localHeader.y() + (GROUP_HEADER_HEIGHT - GROUP_COUNT_CHIP_HEIGHT) / 2.0f;
             group.roundRect(countX, countY, countWidth, GROUP_COUNT_CHIP_HEIGHT, GROUP_COUNT_CHIP_HEIGHT / 2.0f,
                     MD3Theme.withAlpha(MD3Theme.SECONDARY_CONTAINER, 210));
             group.text(countLabel,
-                    countX + (countWidth - textRenderer.textWidth(countLabel, countScale, null)) / 2.0f,
-                    countY + (GROUP_COUNT_CHIP_HEIGHT - textRenderer.textHeight(countScale, null)) / 2.0f,
+                    countX + (countWidth - textRenderer.getWidth(countLabel, countScale)) / 2.0f,
+                    countY + (GROUP_COUNT_CHIP_HEIGHT - textRenderer.getHeight(countScale)) / 2.0f,
                     countScale,
                     MD3Theme.ON_SECONDARY_CONTAINER);
 
@@ -406,13 +414,61 @@ public class SettingListController implements AutoCloseable {
         }
 
         float height = GROUP_HEADER_HEIGHT + GROUP_ROW_INSET * 2.0f;
-        for (Setting<?> setting : section.settings()) {
-            SettingRow<?> row = rowCache.computeIfAbsent(setting, SettingViewFactory::create);
-            if (row != null) {
-                height += row.getHeight() + MD3Theme.ROW_GAP;
+        for (SettingLayoutPlanner.Section.Element element : section.elements()) {
+            switch (element) {
+                case SettingLayoutPlanner.Section.SettingElement settingElement -> {
+                    SettingRow<?> row = rowCache.computeIfAbsent(settingElement.setting(), SettingViewFactory::create);
+                    if (row != null) {
+                        height += row.getHeight() + MD3Theme.ROW_GAP;
+                    }
+                }
+                case SettingLayoutPlanner.Section.GroupElement groupElement ->
+                        height += getSectionHeight(groupElement.section()) + MD3Theme.ROW_GAP;
             }
         }
         return height;
+    }
+
+    /**
+     * 收集 section 树中所有分组 key，用于清理失效的悬浮/展开动画。
+     */
+    private void collectSectionKeys(List<SettingLayoutPlanner.Section> sections, List<String> output) {
+        for (SettingLayoutPlanner.Section section : sections) {
+            if (!section.hasHeader()) {
+                continue;
+            }
+            output.add(section.key());
+            collectSectionKeys(section.children(), output);
+        }
+    }
+
+    /**
+     * 嵌套层级缩进；达到上限后不再增加，并在宽度不足时收敛，避免内容宽度塌缩。
+     */
+    private static float groupNestInset(int depth, float availableWidth) {
+        float limit = Math.max(0.0f, (availableWidth - GROUP_MIN_WIDTH) * 0.5f);
+        int clampedDepth = Math.min(Math.max(depth, 0), GROUP_DEPTH_LIMIT);
+        return Math.min(GROUP_NEST_INSET * clampedDepth, limit);
+    }
+
+    /**
+     * 分组卡片表面色，层级越深越浅，用于说明 Setting 属于该分组。
+     */
+    private static Color groupSurface(int depth) {
+        if (depth <= 0) {
+            return MD3Theme.SURFACE_CONTAINER_LOW;
+        }
+        int clampedDepth = Math.min(depth, GROUP_DEPTH_LIMIT);
+        float ratio = clampedDepth / (float) GROUP_DEPTH_LIMIT * 0.65f;
+        return MD3Theme.lerp(MD3Theme.SURFACE_CONTAINER_LOW, MD3Theme.SURFACE_CONTAINER_HIGH, ratio);
+    }
+
+    private static Color groupOutline(int depth) {
+        if (depth <= 0) {
+            return MD3Theme.OUTLINE_SOFT;
+        }
+        int clampedDepth = Math.min(depth, GROUP_DEPTH_LIMIT);
+        return MD3Theme.withAlpha(MD3Theme.OUTLINE, Math.min(160, 96 + 12 * clampedDepth));
     }
 
     private Animation createAnimation(long duration, float startValue) {
@@ -431,21 +487,21 @@ public class SettingListController implements AutoCloseable {
         });
     }
 
-    private String trimToWidth(String value, float scale, float width, UiTextMetrics textRenderer) {
-        if (value == null || value.isEmpty()) {
+    private String trimToWidth(String value, float scale, float width, TextRenderer textRenderer) {
+        if (value == null || value.isEmpty() || width <= 0.0f) {
             return "";
         }
-        if (textRenderer.textWidth(value, scale, null) <= width) {
+        if (textRenderer.getWidth(value, scale) <= width) {
             return value;
         }
         String ellipsis = "...";
-        float ellipsisWidth = textRenderer.textWidth(ellipsis, scale, null);
+        float ellipsisWidth = textRenderer.getWidth(ellipsis, scale);
         if (ellipsisWidth >= width) {
             return ellipsis;
         }
         for (int length = value.length() - 1; length >= 0; length--) {
             String candidate = value.substring(0, length) + ellipsis;
-            if (textRenderer.textWidth(candidate, scale, null) <= width) {
+            if (textRenderer.getWidth(candidate, scale) <= width) {
                 return candidate;
             }
         }
@@ -465,18 +521,6 @@ public class SettingListController implements AutoCloseable {
             popupY = chipBounds.y() - popupHeight - 4.0f;
         }
         return new EnumSelectPopup(new UiRect(popupX, popupY, popupWidth, popupHeight), enumRow.getSetting());
-    }
-
-    private ChoiceSelectPopup createChoicePopup(ChoiceSettingRow choiceRow, UiRect rowBounds, UiRect popupBounds) {
-        UiRect chipBounds = choiceRow.getChipBounds(measureTextRenderer, rowBounds);
-        int visibleCount = Math.min(choiceRow.getSetting().getChoices().size(), ChoiceSelectPopup.MAX_VISIBLE_ITEMS);
-        float popupHeight = visibleCount * 24.0f + 12.0f;
-        float popupWidth = Math.max(108.0f, chipBounds.width() + 24.0f);
-        float popupX = Math.max(popupBounds.x() + MD3Theme.PANEL_VIEWPORT_INSET, chipBounds.right() - popupWidth);
-        float popupY = chipBounds.bottom() + 4.0f;
-        float maxBottom = popupBounds.bottom() - MD3Theme.PANEL_VIEWPORT_INSET;
-        if (popupY + popupHeight > maxBottom) popupY = chipBounds.y() - popupHeight - 4.0f;
-        return new ChoiceSelectPopup(new UiRect(popupX, popupY, popupWidth, popupHeight), choiceRow.getSetting());
     }
 
     private ColorPickerPopup createColorPopup(ColorSettingRow colorRow, UiRect rowBounds, UiRect popupBounds) {

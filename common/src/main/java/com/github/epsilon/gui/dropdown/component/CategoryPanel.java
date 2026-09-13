@@ -1,11 +1,12 @@
 package com.github.epsilon.gui.dropdown.component;
 
 import com.github.epsilon.gui.dropdown.DropdownTheme;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.epsilon.holders.ModuleHolder;
-import com.github.epsilon.holders.TranslateHolder;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.control.UiScrollBar;
+import com.github.epsilon.managers.ModuleManager;
+import com.github.epsilon.managers.TranslationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
 import com.github.epsilon.modules.impl.ClientSetting;
@@ -30,7 +31,7 @@ public class CategoryPanel extends AbstractDropdownPanel {
     public CategoryPanel(Category category, int panelIndex) {
         super("category:" + category, category::getName, category.icon, panelIndex);
         this.category = category;
-        List<Module> modules = ModuleHolder.INSTANCE.getModules().stream()
+        List<Module> modules = ModuleManager.INSTANCE.getModules().stream()
                 .filter(m -> m.getCategory() == category)
                 .toList();
         initModuleButtons(modules);
@@ -48,40 +49,6 @@ public class CategoryPanel extends AbstractDropdownPanel {
             moduleButtons.add(new ModuleButton(module));
         }
         refreshSortedModuleButtons();
-    }
-
-    /** 动态脚本会替换 Module 实例，Dropdown 必须同步注册表而不是长期持有旧 runtime。 */
-    private void synchronizeModuleButtons() {
-        if (category == null) return;
-        List<Module> registered = ModuleHolder.INSTANCE.getModules().stream()
-                .filter(module -> module.getCategory() == category)
-                .toList();
-        if (registered.size() == moduleButtons.size()) {
-            boolean unchanged = true;
-            for (int index = 0; index < registered.size(); index++) {
-                if (moduleButtons.get(index).getModule() != registered.get(index)) {
-                    unchanged = false;
-                    break;
-                }
-            }
-            if (unchanged) return;
-        }
-
-        Map<Module, ModuleButton> existing = new IdentityHashMap<>();
-        for (ModuleButton button : moduleButtons) existing.put(button.getModule(), button);
-        moduleButtons.clear();
-        for (Module module : registered) {
-            ModuleButton button = existing.get(module);
-            moduleButtons.add(button != null ? button : new ModuleButton(module));
-        }
-        sortedModuleButtons = List.of();
-        visibleModuleButtons = List.of();
-        searchTextCache.clear();
-        cachedSortMode = null;
-        cachedSortSignature = Long.MIN_VALUE;
-        cachedFilterSignature = Long.MIN_VALUE;
-        cachedSearchTextRevision = Long.MIN_VALUE;
-        cachedContentHeightFrameId = Integer.MIN_VALUE;
     }
 
     @Override
@@ -207,7 +174,6 @@ public class CategoryPanel extends AbstractDropdownPanel {
     }
 
     private List<ModuleButton> visibleButtons() {
-        synchronizeModuleButtons();
         refreshSortedModuleButtons();
         long filterSignature = cachedSortSignature * 31L + searchQuery.hashCode();
         if (filterSignature == cachedFilterSignature) {
@@ -223,12 +189,11 @@ public class CategoryPanel extends AbstractDropdownPanel {
     private long buildSortSignature(ClientSetting.ModuleSort sortMode) {
         long signature = 17L;
         signature = signature * 31L + sortMode.ordinal();
-        signature = signature * 31L + TranslateHolder.INSTANCE.getRevision();
+        signature = signature * 31L + TranslationManager.INSTANCE.getRevision();
         signature = signature * 31L + moduleButtons.size();
         for (ModuleButton button : moduleButtons) {
             Module module = button.getModule();
             signature = signature * 31L + Objects.hashCode(module.getName());
-            signature = signature * 31L + Objects.hashCode(module.getAddonId());
             signature = signature * 31L + (module.isEnabled() ? 1 : 0);
         }
         return signature;
@@ -239,8 +204,6 @@ public class CategoryPanel extends AbstractDropdownPanel {
         return switch (sortMode) {
             case EnabledFirst ->
                     Comparator.comparing((ModuleButton button) -> button.getModule().isEnabled()).reversed().thenComparing(nameComparator);
-            case Addon ->
-                    Comparator.comparing((ModuleButton button) -> normalizedAddon(button.getModule()), String.CASE_INSENSITIVE_ORDER).thenComparing(nameComparator);
             case Name -> nameComparator;
         };
     }
@@ -252,11 +215,6 @@ public class CategoryPanel extends AbstractDropdownPanel {
         return name == null ? "" : name;
     }
 
-    private String normalizedAddon(Module module) {
-        String addonId = module.getAddonId();
-        return addonId == null || addonId.isBlank() ? "unknown" : addonId.toLowerCase(Locale.ROOT);
-    }
-
     private boolean matchesSearch(ModuleButton button) {
         if (searchQuery.isBlank()) return true;
         refreshSearchTextCache();
@@ -265,7 +223,7 @@ public class CategoryPanel extends AbstractDropdownPanel {
     }
 
     private void refreshSearchTextCache() {
-        long revision = TranslateHolder.INSTANCE.getRevision();
+        long revision = TranslationManager.INSTANCE.getRevision();
         if (cachedSearchTextRevision == revision && !searchTextCache.isEmpty()) {
             return;
         }
@@ -275,8 +233,7 @@ public class CategoryPanel extends AbstractDropdownPanel {
             String translated = module.getTranslatedName() == null ? "" : module.getTranslatedName();
             String name = module.getName() == null ? "" : module.getName();
             String categoryName = module.getCategory() == null ? "" : module.getCategory().getName();
-            String addon = module.getAddonId() == null ? "" : module.getAddonId();
-            searchTextCache.put(button, (translated + '\n' + name + '\n' + categoryName + '\n' + addon).toLowerCase(Locale.ROOT));
+            searchTextCache.put(button, (translated + '\n' + name + '\n' + categoryName).toLowerCase(Locale.ROOT));
         }
         cachedSearchTextRevision = revision;
     }

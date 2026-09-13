@@ -1,25 +1,29 @@
 package com.github.epsilon.graphics;
 
 import com.github.epsilon.assets.resources.ResourceLocationUtils;
-import com.github.epsilon.gui.utils.UiCoordinateMapper;
-import com.github.epsilon.holders.RenderTargetHolder;
+import com.github.epsilon.graphics.shaders.MotionBlurShader;
+import com.github.epsilon.graphics.text.StaticFontLoader;
+import com.github.epsilon.managers.RenderTargetManager;
+import com.github.epsilon.managers.RendererManager;
 import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.utils.render.ScissorUtils;
+import com.mojang.blaze3d.GpuFormat;
+import com.mojang.blaze3d.IndexType;
+import com.mojang.blaze3d.PrimitiveTopology;
 import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.*;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.DynamicUniformStorage;
 import net.minecraft.client.renderer.Projection;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.client.renderer.rendertype.TextureTransform;
+import net.minecraft.client.renderer.state.WindowRenderState;
 import net.minecraft.resources.Identifier;
 import org.joml.*;
 
-import javax.annotation.Nullable;
 import java.lang.Math;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,18 +37,23 @@ public class LuminRenderSystem {
 
     private static final ProjectionMatrixBuffer guiProjectionMatrixBuffer = new ProjectionMatrixBuffer("lumin-gui");
 
-    @Nullable
+    /** 当前 GPU 后端是否为 Vulkan。设备创建后后端不会再变，因此只判定一次。 */
+    public static final boolean IS_VULKAN_BACKEND = "Vulkan".equals(RenderSystem.getDevice().getDeviceInfo().backendName());
+
     private static LuminRenderTarget activeTarget = null;
     private static long renderFrameId;
 
-    public static void setActiveTarget(@Nullable LuminRenderTarget target) {
+    public static void setActiveTarget(LuminRenderTarget target) {
         activeTarget = target;
     }
 
     public static void destroyAll() {
         guiProjectionMatrixBuffer.close();
+        MotionBlurShader.INSTANCE.close();
         ShaderUniforms.closeAll();
-        RenderTargetHolder.INSTANCE.destroyAll();
+        RenderTargetManager.INSTANCE.destroyAll();
+        RendererManager.INSTANCE.destroyAll();
+        StaticFontLoader.destroyDefault();
     }
 
     public static <T extends DynamicUniformStorage.DynamicUniform> GpuBufferSlice writeDynamicUniform(
@@ -69,7 +78,6 @@ public class LuminRenderSystem {
         return renderFrameId;
     }
 
-    @Nullable
     public static LuminRenderTarget getActiveTarget() {
         return activeTarget;
     }
@@ -79,11 +87,13 @@ public class LuminRenderSystem {
     }
 
     public static float getScaledWidth() {
-        return UiCoordinateMapper.getProjectionWidth();
+        WindowRenderState windowState = mc.gameRenderer.gameRenderState().windowRenderState;
+        return (float) (windowState.width / getGuiScale());
     }
 
     public static float getScaledHeight() {
-        return UiCoordinateMapper.getProjectionHeight();
+        WindowRenderState windowState = mc.gameRenderer.gameRenderState().windowRenderState;
+        return (float) (windowState.height / getGuiScale());
     }
 
     public static int getScaledWidthInt() {
@@ -95,19 +105,19 @@ public class LuminRenderSystem {
     }
 
     public static double toEpsilonMouseX(double mouseX) {
-        return UiCoordinateMapper.toProjectionX(mouseX);
+        return mouseX * mc.getWindow().getGuiScale() / getGuiScale();
     }
 
     public static double toEpsilonMouseY(double mouseY) {
-        return UiCoordinateMapper.toProjectionY(mouseY);
+        return mouseY * mc.getWindow().getGuiScale() / getGuiScale();
     }
 
     public static double toMinecraftGuiX(double epsilonX) {
-        return UiCoordinateMapper.toMinecraftX(epsilonX);
+        return epsilonX * getGuiScale() / mc.getWindow().getGuiScale();
     }
 
     public static double toMinecraftGuiY(double epsilonY) {
-        return UiCoordinateMapper.toMinecraftY(epsilonY);
+        return epsilonY * getGuiScale() / mc.getWindow().getGuiScale();
     }
 
     public static int toEpsilonMouseX(int mouseX) {
@@ -119,7 +129,7 @@ public class LuminRenderSystem {
     }
 
     public static MouseButtonEvent toEpsilonMouseEvent(MouseButtonEvent event) {
-        return UiCoordinateMapper.toProjectionEvent(event);
+        return new MouseButtonEvent(toEpsilonMouseX(event.x()), toEpsilonMouseY(event.y()), event.buttonInfo());
     }
 
     public static ScissorRect toFramebufferScissor(float x, float y, float width, float height) {
@@ -155,13 +165,12 @@ public class LuminRenderSystem {
      */
     public static GpuTextureView resolveColorView() {
         if (activeTarget != null) return activeTarget.colorView();
-        return mc.getMainRenderTarget().getColorTextureView();
+        return mc.gameRenderer.mainRenderTarget().getColorTextureView();
     }
 
-    @Nullable
     public static GpuTextureView resolveDepthView() {
         if (activeTarget != null) return activeTarget.depthView();
-        return mc.getMainRenderTarget().getDepthTextureView();
+        return mc.gameRenderer.mainRenderTarget().getDepthTextureView();
     }
 
     public static QuadRenderingInfo prepareQuadRendering(int vertexCount) {
@@ -181,39 +190,37 @@ public class LuminRenderSystem {
         GpuBuffer ibo = getQuadIndexBuffer(indexCount);
 
         GpuBufferSlice dynamicUniforms = writeTransform(
-                RenderSystem.getModelViewMatrix(),
+                RenderSystem.getModelViewMatrixCopy(),
                 new Vector4f(1, 1, 1, 1),
                 new Vector3f(0, 0, 0),
-                TextureTransform.DEFAULT_TEXTURING.getMatrix()
+                TextureTransform.DEFAULT_TEXTURING.createMatrix()
         );
 
         return new QuadRenderingInfo(colorView, depthView, getQuadIndexType(), ibo, indexCount, dynamicUniforms);
     }
 
     public static GpuBuffer getQuadIndexBuffer(int indexCount) {
-        RenderSystem.AutoStorageIndexBuffer autoIndices =
-                RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
+        RenderSystem.AutoStorageIndexBuffer autoIndices = RenderSystem.getSequentialBuffer(PrimitiveTopology.QUADS);
         return autoIndices.getBuffer(indexCount);
     }
 
-    public static VertexFormat.IndexType getQuadIndexType() {
-        RenderSystem.AutoStorageIndexBuffer autoIndices =
-                RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
+    public static IndexType getQuadIndexType() {
+        RenderSystem.AutoStorageIndexBuffer autoIndices = RenderSystem.getSequentialBuffer(PrimitiveTopology.QUADS);
         return autoIndices.type();
     }
 
     public static GpuBufferSlice writeTransform(Matrix4fc modelView, Vector4fc colorModulator, Vector3fc modelOffset, Matrix4fc textureMatrix) {
         return RenderSystem.getDynamicUniforms().writeTransform(
-                modelView, colorModulator, modelOffset, textureMatrix
+                new Matrix4f(modelView), new Vector4f(colorModulator), new Vector3f(modelOffset), new Matrix4f(textureMatrix)
         );
     }
 
     public static GpuBufferSlice writeDefaultGuiTransform() {
         return writeTransform(
-                RenderSystem.getModelViewMatrix(),
+                RenderSystem.getModelViewMatrixCopy(),
                 new Vector4f(1, 1, 1, 1),
                 new Vector3f(0, 0, 0),
-                TextureTransform.DEFAULT_TEXTURING.getMatrix()
+                TextureTransform.DEFAULT_TEXTURING.createMatrix()
         );
     }
 
@@ -222,8 +229,8 @@ public class LuminRenderSystem {
 
     public record QuadRenderingInfo(
             GpuTextureView colorView,
-            @Nullable GpuTextureView depthView,
-            VertexFormat.IndexType indexType,
+            GpuTextureView depthView,
+            IndexType indexType,
             GpuBuffer ibo,
             int indexCount,
             GpuBufferSlice dynamicUniforms
@@ -231,7 +238,6 @@ public class LuminRenderSystem {
     }
 
     private static final class ShaderUniforms {
-
         private static final Map<String, DynamicUniformStorage<DynamicUniformStorage.DynamicUniform>> UNIFORMS = new HashMap<>();
 
         private ShaderUniforms() {
@@ -258,11 +264,9 @@ public class LuminRenderSystem {
             UNIFORMS.values().forEach(DynamicUniformStorage::close);
             UNIFORMS.clear();
         }
-
     }
 
-    public static final class LuminRenderTarget implements AutoCloseable {
-
+    public static class LuminRenderTarget implements AutoCloseable {
         private LuminTexture colorTexture;
         private GpuTexture depthTexture;
         private GpuTextureView depthView;
@@ -281,11 +285,11 @@ public class LuminRenderSystem {
         }
 
         public static LuminRenderTarget create(String name, int width, int height) {
-            return RenderTargetHolder.INSTANCE.register(new LuminRenderTarget(name, width, height, false));
+            return RenderTargetManager.INSTANCE.register(new LuminRenderTarget(name, width, height, false));
         }
 
         public static LuminRenderTarget createWithDepth(String name, int width, int height) {
-            return RenderTargetHolder.INSTANCE.register(new LuminRenderTarget(name, width, height, true));
+            return RenderTargetManager.INSTANCE.register(new LuminRenderTarget(name, width, height, true));
         }
 
         private void createTextures() {
@@ -295,7 +299,7 @@ public class LuminRenderSystem {
             final var colorTexture = device.createTexture(
                     "lumin-rt-color",
                     GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC,
-                    TextureFormat.RGBA8,
+                    GpuFormat.RGBA8_UNORM,
                     width, height, 1, 1
             );
             final var colorView = device.createTextureView(colorTexture);
@@ -304,7 +308,7 @@ public class LuminRenderSystem {
                 depthTexture = device.createTexture(
                         "lumin-rt-depth",
                         GpuTexture.USAGE_TEXTURE_BINDING | GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_COPY_DST | GpuTexture.USAGE_COPY_SRC,
-                        TextureFormat.DEPTH32,
+                        GpuFormat.D32_FLOAT,
                         width, height, 1, 1
                 );
                 depthView = device.createTextureView(depthTexture);
@@ -336,9 +340,9 @@ public class LuminRenderSystem {
         public void clear() {
             var encoder = RenderSystem.getDevice().createCommandEncoder();
             if (useDepth) {
-                encoder.clearColorAndDepthTextures(colorTexture.getTexture(), 0, depthTexture, 1.0);
+                encoder.clearColorAndDepthTextures(colorTexture.getTexture(), new Vector4f(0.0f, 0.0f, 0.0f, 0.0f), depthTexture, 1.0);
             } else {
-                encoder.clearColorTexture(colorTexture.getTexture(), 0);
+                encoder.clearColorTexture(colorTexture.getTexture(), new Vector4f(0.0f, 0.0f, 0.0f, 0.0f));
             }
         }
 
@@ -346,7 +350,6 @@ public class LuminRenderSystem {
             return colorTexture.getTextureView();
         }
 
-        @Nullable
         public GpuTextureView depthView() {
             return depthView;
         }
@@ -387,7 +390,7 @@ public class LuminRenderSystem {
         @Override
         public void close() {
             destroyTextures();
-            RenderTargetHolder.INSTANCE.unregister(this);
+            RenderTargetManager.INSTANCE.unregister(this);
         }
     }
 

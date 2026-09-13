@@ -1,6 +1,6 @@
 package com.github.epsilon.utils.rotation;
 
-import com.github.epsilon.managers.Managers;
+import com.github.epsilon.managers.rotation.RotationManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
@@ -44,7 +44,7 @@ public class RotationUtils {
         for (Direction direction : Direction.values()) {
             if (!predicate.test(direction)) continue;
 
-            double distanceSq = eyePos.distanceToSqr(pos.relative(direction).getCenter());
+            double distanceSq = eyePos.distanceToSqr(Vec3.atCenterOf(pos.relative(direction)));
             if (distanceSq >= closestDistanceSq) continue;
 
             side = direction;
@@ -57,12 +57,12 @@ public class RotationUtils {
     /**
      * 判断玩家眼睛是否可直接看见指定方块面。
      *
-     * @param pos 目标位置
+     * @param pos  目标位置
      * @param side 方块面方向
      * @return 判断结果
      */
     public static boolean canSee(BlockPos pos, Direction side) {
-        Vec3 testVec = pos.getCenter().relative(side, 0.5);
+        Vec3 testVec = Vec3.atCenterOf(pos).relative(side, 0.5);
         ClipContext context = new ClipContext(mc.player.getEyePosition(), testVec, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player);
         HitResult result = mc.level.clip(context);
         return result.getType() == HitResult.Type.MISS;
@@ -82,7 +82,7 @@ public class RotationUtils {
     /**
      * 判断指定方块面是否满足 Grim 方向检查。
      *
-     * @param pos 目标位置
+     * @param pos       目标位置
      * @param direction 方块面方向
      * @return 判断结果
      */
@@ -106,7 +106,7 @@ public class RotationUtils {
      * 判断实体是否位于玩家水平视野范围内。
      *
      * @param entity 实体
-     * @param fov 水平视野角度
+     * @param fov    水平视野角度
      * @return 判断结果
      */
     public static boolean isInFov(Entity entity, float fov) {
@@ -152,7 +152,7 @@ public class RotationUtils {
      * 计算朝向目标位置或实体的旋转。
      *
      * @param from 起始位置
-     * @param to 目标位置
+     * @param to   目标位置
      * @return 计算得到的旋转角
      */
     public static Rot2f calculate(final Vec3 from, final Vec3 to) {
@@ -180,9 +180,9 @@ public class RotationUtils {
     /**
      * 计算朝向目标位置或实体的旋转。
      *
-     * @param entity 实体
+     * @param entity   实体
      * @param adaptive 是否在实体包围盒内自适应选择目标点
-     * @param range 射线追踪或自适应选点距离
+     * @param range    射线追踪或自适应选点距离
      * @return 计算得到的旋转角
      */
     public static Rot2f calculate(final Entity entity, final boolean adaptive, final double range) {
@@ -235,7 +235,7 @@ public class RotationUtils {
      * @return 计算得到的旋转角
      */
     public static Rot2f calculate(BlockPos to) {
-        return calculate(mc.player.getEyePosition(), to.getCenter());
+        return calculate(mc.player.getEyePosition(), Vec3.atCenterOf(to));
     }
 
     /**
@@ -251,7 +251,7 @@ public class RotationUtils {
     /**
      * 计算朝向目标位置或实体的旋转。
      *
-     * @param position 目标位置
+     * @param position  目标位置
      * @param direction 方块面方向
      * @return 计算得到的旋转角
      */
@@ -268,7 +268,7 @@ public class RotationUtils {
     /**
      * 计算朝向目标位置或实体的旋转。
      *
-     * @param position 目标位置
+     * @param position  目标位置
      * @param direction 方块面方向
      * @return 计算得到的旋转角
      */
@@ -282,6 +282,21 @@ public class RotationUtils {
         return calculate(new Vec3(x, y, z));
     }
 
+    public static Rot2f calculate(Vec3 vec, boolean predict) {
+        Vec3 eyesPos = mc.player.getEyePosition();
+
+        if (predict) eyesPos = eyesPos.add(mc.player.getDeltaMovement());
+
+        double diffX = vec.x - eyesPos.x;
+        double diffY = vec.y - eyesPos.y;
+        double diffZ = vec.z - eyesPos.z;
+
+        float yaw = Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(diffZ, diffX)) - 90f);
+        float pitch = Mth.wrapDegrees(-(float) Math.toDegrees(Math.atan2(diffY, Math.sqrt(diffX * diffX + diffZ * diffZ))));
+
+        return new Rot2f(yaw, pitch);
+    }
+
     /**
      * 按鼠标灵敏度步长量化目标旋转。
      *
@@ -289,7 +304,7 @@ public class RotationUtils {
      * @return 操作结果
      */
     public static Rot2f applySensitivityPatch(Rot2f rotation) {
-        Rot2f previousRotation = new Rot2f(Managers.ROTATION.getLastRotation().getYaw(), Managers.ROTATION.getLastRotation().getPitch());
+        Rot2f previousRotation = new Rot2f(RotationManager.INSTANCE.getLastRotation().getYaw(), RotationManager.INSTANCE.getLastRotation().getPitch());
         float mouseSensitivity = (float) (mc.options.sensitivity().get() * (1 + Math.random() / 10000000) * 0.6F + 0.2F);
         double multiplier = mouseSensitivity * mouseSensitivity * mouseSensitivity * 8.0F * 0.15D;
         float yaw = previousRotation.getYaw() + (float) (Math.round((rotation.getYaw() - previousRotation.getYaw()) / multiplier) * multiplier);
@@ -300,7 +315,7 @@ public class RotationUtils {
     /**
      * 按鼠标灵敏度步长量化目标旋转。
      *
-     * @param rotation 旋转角
+     * @param rotation         旋转角
      * @param previousRotation 用于量化的基准旋转
      * @return 操作结果
      */
@@ -319,7 +334,8 @@ public class RotationUtils {
      * @return 操作结果
      */
     public static Rot2f relateToPlayerRotation(Rot2f rotation) {
-        Rot2f previousRotation = new Rot2f(Managers.ROTATION.getLastRotation().getYaw(), Managers.ROTATION.getLastRotation().getPitch());
+        RotationManager rotationManager = RotationManager.INSTANCE;
+        Rot2f previousRotation = new Rot2f(rotationManager.getLastRotation().getYaw(), rotationManager.getLastRotation().getPitch());
         float yaw = previousRotation.getYaw() + Mth.wrapDegrees(rotation.getYaw() - previousRotation.getYaw());
         float pitch = Mth.clamp(rotation.getPitch(), -90, 90);
         return new Rot2f(yaw, pitch);
@@ -342,19 +358,19 @@ public class RotationUtils {
      * 以最大角速度将当前旋转移向目标旋转。
      *
      * @param targetRotation 目标旋转
-     * @param speed 移动速度或最大旋转速度
+     * @param speed          移动速度或最大旋转速度
      * @return 操作结果
      */
     public static Rot2f move(Rot2f targetRotation, double speed) {
-        return move(Managers.ROTATION.lastRotations, targetRotation, speed);
+        return move(RotationManager.INSTANCE.lastRotations, targetRotation, speed);
     }
 
     /**
      * 以最大角速度将当前旋转移向目标旋转。
      *
-     * @param lastRotation 当前或上一次旋转
+     * @param lastRotation   当前或上一次旋转
      * @param targetRotation 目标旋转
-     * @param speed 移动速度或最大旋转速度
+     * @param speed          移动速度或最大旋转速度
      * @return 操作结果
      */
     public static Rot2f move(Rot2f lastRotation, Rot2f targetRotation, double speed) {
@@ -382,19 +398,19 @@ public class RotationUtils {
      * 使用限制后的角速度平滑旋转到目标。
      *
      * @param targetRotation 目标旋转
-     * @param speed 移动速度或最大旋转速度
+     * @param speed          移动速度或最大旋转速度
      * @return 操作结果
      */
     public static Rot2f smooth(final Rot2f targetRotation, final double speed) {
-        return smooth(Managers.ROTATION.lastRotations, targetRotation, speed);
+        return smooth(RotationManager.INSTANCE.lastRotations, targetRotation, speed);
     }
 
     /**
      * 使用限制后的角速度平滑旋转到目标。
      *
-     * @param lastRotation 当前或上一次旋转
+     * @param lastRotation   当前或上一次旋转
      * @param targetRotation 目标旋转
-     * @param speed 移动速度或最大旋转速度
+     * @param speed          移动速度或最大旋转速度
      * @return 操作结果
      */
     public static Rot2f smooth(final Rot2f lastRotation, final Rot2f targetRotation, final double speed) {

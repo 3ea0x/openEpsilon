@@ -1,8 +1,6 @@
 package com.github.epsilon.utils.render.animation;
 
-import com.github.slmpc.lumingraphics.ui.animation.UiAnimation;
-
-public class Animation implements UiAnimation {
+public class Animation {
 
     private final Easing easing;
     private long duration;
@@ -17,7 +15,7 @@ public class Animation implements UiAnimation {
     /**
      * 创建使用指定缓动函数和时长的动画。
      *
-     * @param easing 缓动类型
+     * @param easing   缓动类型
      * @param duration 持续时间，单位为毫秒
      */
     public Animation(Easing easing, long duration) {
@@ -56,17 +54,6 @@ public class Animation implements UiAnimation {
         if (Float.isNaN(value) || !Float.isFinite(value)) {
             this.value = destinationValue;
         }
-    }
-
-    @Override
-    public float advance(float target) {
-        run(target);
-        return value;
-    }
-
-    @Override
-    public boolean active() {
-        return !finished;
     }
 
     /**

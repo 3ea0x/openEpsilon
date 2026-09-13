@@ -7,10 +7,11 @@ import com.github.epsilon.events.impl.PlayerTickEvent;
 import com.github.epsilon.events.impl.Render2DEvent;
 import com.github.epsilon.events.impl.Render3DEvent;
 import com.github.epsilon.graphics.LuminRenderSystem;
+import com.github.epsilon.graphics.renderers.TextRenderer;
 import com.github.epsilon.graphics.schedulers.render3d.Render3DScheduler;
-import com.github.epsilon.gui.theme.EpsilonUiTheme;
-import com.github.epsilon.managers.Managers;
-import com.github.epsilon.managers.impl.target.TargetRequest;
+import com.github.epsilon.managers.rotation.RotationManager;
+import com.github.epsilon.managers.target.TargetManager;
+import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
 import com.github.epsilon.modules.impl.ClientSetting;
@@ -26,11 +27,8 @@ import com.github.epsilon.utils.rotation.RaytraceUtils;
 import com.github.epsilon.utils.rotation.Rot2f;
 import com.github.epsilon.utils.rotation.RotationUtils;
 import com.github.epsilon.utils.timer.TimerUtils;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
-import com.github.slmpc.lumingraphics.ui.scene.UiLayer;
-import com.github.slmpc.lumingraphics.ui.scene.UiScene;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.google.common.base.Supplier;
+import com.google.common.base.Suppliers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.Packet;
@@ -45,7 +43,7 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -93,6 +91,8 @@ public class ZealotCrystalPlus extends Module {
     private final DoubleSetting yawSpeed = doubleSetting("Yaw Speed", 45.0, 5.0, 180.0, 5.0).group(sgGeneral);
     private final DoubleSetting placeRotationRange = doubleSetting("Place Rotation Range", 0.0, 0.0, 180.0, 5.0).group(sgGeneral);
     private final DoubleSetting breakRotationRange = doubleSetting("Break Rotation Range", 90.0, 0.0, 180.0, 5.0).group(sgGeneral);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope).group(sgGeneral);
     private final BoolSetting eatingPause = boolSetting("Eating Pause", false).group(sgGeneral);
     private final IntSetting updateDelay = intSetting("Update Delay", 5, 0, 250, 1).group(sgGeneral);
     private final IntSetting globalDelay = intSetting("Global Delay", 1_000_000, 1_000, 10_000_000, 1_000).group(sgGeneral);
@@ -200,8 +200,7 @@ public class ZealotCrystalPlus extends Module {
     private float renderSelfDamageValue;
     private boolean renderHasTarget;
 
-    private UiScene scene;
-    private MinecraftUiRuntime2612 sceneRuntime;
+    private final Supplier<TextRenderer> textRenderer = Suppliers.memoize(() -> TextRenderer.create(128 * 1024));
     private final Deque<Integer> explosionSamples = new ArrayDeque<>();
     private int explosionsThisWindow;
 
@@ -250,7 +249,6 @@ public class ZealotCrystalPlus extends Module {
         explosionSamples.clear();
         explosionsThisWindow = 0;
         resetRenderState();
-        releaseScene();
         signalWorker();
     }
 
@@ -289,7 +287,7 @@ public class ZealotCrystalPlus extends Module {
         if (nullCheck() || !isEnabled()) return;
 
         Packet<?> packet = event.getPacket();
-        if (packet instanceof ClientboundAddEntityPacket addPacket && addPacket.getType() == EntityType.END_CRYSTAL) {
+        if (packet instanceof ClientboundAddEntityPacket addPacket && addPacket.getType() == EntityTypes.END_CRYSTAL) {
             handleSpawnPacket(addPacket);
         } else if (packet instanceof ClientboundSoundPacket soundPacket) {
             handleExplosionPacket(soundPacket);
@@ -353,32 +351,13 @@ public class ZealotCrystalPlus extends Module {
         }
         if (text.isEmpty()) return;
 
-        MinecraftUiRuntime2612 runtime = MinecraftUiRuntime2612.current();
-        ClientSetting.INSTANCE.configureMinecraftFonts(runtime);
-        UiTextMetrics textMetrics = runtime.textMetrics();
+        TextRenderer renderer = textRenderer.get();
         float scale = 1.0f;
-        float width = textMetrics.textWidth(text.toString(), scale, null);
-        float height = textMetrics.textHeight(scale, null);
+        float width = renderer.getWidth(text.toString(), scale);
+        float height = renderer.getHeight(scale);
         Color color = new Color(255, 255, 255, Math.clamp((int) (220 * renderScale), 0, 255));
-        UiTree tree = UiTree.build(scope -> scope.text(text.toString(),
-                screenPos.x - width / 2.0f, screenPos.y - height / 2.0f, scale, color));
-        runtime.render(scene(runtime), UiLayer.CONTENT, tree);
-    }
-
-    private UiScene scene(MinecraftUiRuntime2612 runtime) {
-        if (scene == null || sceneRuntime != runtime) {
-            releaseScene();
-            scene = runtime.createScene(EpsilonUiTheme.lumin());
-            sceneRuntime = runtime;
-        }
-        return scene;
-    }
-
-    private void releaseScene() {
-        UiScene previous = scene;
-        scene = null;
-        sceneRuntime = null;
-        if (previous != null) previous.close();
+        renderer.addText(text.toString(), screenPos.x - width / 2.0f, screenPos.y - height / 2.0f, scale, color);
+        renderer.drawAndClear();
     }
 
 
@@ -541,7 +520,7 @@ public class ZealotCrystalPlus extends Module {
     }
 
     private SelfSnapshot captureSelfSnapshot(Player player, DamageUtils.ArmorEnchantmentMode armorMode) {
-        Rot2f currentRotation = Managers.ROTATION.getRotation();
+        Rot2f currentRotation = RotationManager.INSTANCE.getRotation();
         return new SelfSnapshot(
                 player,
                 player.position(),
@@ -562,12 +541,15 @@ public class ZealotCrystalPlus extends Module {
         if (mc.player == null || mc.level == null) return List.of();
 
         int ticks = motionPredict.getValue() ? predictTicks.getValue() : 0;
-        List<LivingEntity> targets = Managers.TARGET.acquireTargets(TargetRequest.of(
+        List<LivingEntity> targets = TargetManager.INSTANCE.acquireTargets(TargetRequest.of(
                 targetRange.getValue(),
                 360.0f,
                 players.getValue(),
                 mobs.getValue(),
                 animals.getValue(),
+                false,
+                false,
+                false,
                 false,
                 true,
                 living -> living.position().y > -64.0,
@@ -729,8 +711,8 @@ public class ZealotCrystalPlus extends Module {
         TargetSnapshot primary = placeInfo != null
                 ? snapshot.targets().stream().filter(targetInfo -> targetInfo.entity() == placeInfo.target()).findFirst().orElse(snapshot.targets().getFirst())
                 : (rotationPlaceInfo != null
-                   ? snapshot.targets().stream().filter(targetInfo -> targetInfo.entity() == rotationPlaceInfo.target()).findFirst().orElse(snapshot.targets().getFirst())
-                   : snapshot.targets().getFirst());
+                ? snapshot.targets().stream().filter(targetInfo -> targetInfo.entity() == rotationPlaceInfo.target()).findFirst().orElse(snapshot.targets().getFirst())
+                : snapshot.targets().getFirst());
 
         return new AsyncResult(snapshot.id(), rotationPlaceInfo, placeInfo, rotationBreakPlan, breakPlan, primary, System.nanoTime() - startTime);
     }
@@ -1014,7 +996,7 @@ public class ZealotCrystalPlus extends Module {
         InteractionHand finalHand = hand;
         BlockHitResult hitResult = new BlockHitResult(placeInfo.hitVec(), placeInfo.side(), placeInfo.blockPos(), false);
 
-        Managers.ROTATION.setRotations(placeInfo.rotation(), getRotationSpeed(), null, Priority.High);
+        RotationManager.request(rotationType.getValue(), placeInfo.rotation(), getRotationSpeed(), null, Priority.High);
 
         InteractionResult result = mc.gameMode.useItemOn(mc.player, finalHand, hitResult);
         if (result.consumesAction()) {
@@ -1055,7 +1037,7 @@ public class ZealotCrystalPlus extends Module {
             }
         }
 
-        Managers.ROTATION.setRotations(RotationUtils.calculate(breakPlan.pos()), getRotationSpeed(), null, Priority.High);
+        RotationManager.request(rotationType.getValue(), RotationUtils.calculate(breakPlan.pos()), getRotationSpeed(), null, Priority.High);
 
         Entity current = mc.level.getEntity(breakPlan.entityId());
         if (!(current instanceof EndCrystal currentCrystal) || !currentCrystal.isAlive()) {
@@ -1423,7 +1405,7 @@ public class ZealotCrystalPlus extends Module {
 
     private boolean checkPlaceRotation(BlockPos pos) {
         if (placeRotationRange.getValue() <= 0.0) return true;
-        return checkPlaceRotation(pos, Managers.ROTATION.getRotation());
+        return checkPlaceRotation(pos, RotationManager.INSTANCE.getRotation());
     }
 
     private boolean checkPlaceRotation(BlockPos pos, Rot2f currentRotation) {
@@ -1433,7 +1415,7 @@ public class ZealotCrystalPlus extends Module {
 
     private boolean checkCrystalRotation(Vec3 crystalPos, double range) {
         if (range <= 0.0) return true;
-        return checkCrystalRotation(crystalPos, range, Managers.ROTATION.getRotation());
+        return checkCrystalRotation(crystalPos, range, RotationManager.INSTANCE.getRotation());
     }
 
     private boolean checkCrystalRotation(Vec3 crystalPos, double range, Rot2f currentRotation) {

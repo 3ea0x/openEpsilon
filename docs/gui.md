@@ -1,72 +1,150 @@
 # Epsilon GUI 架构
 
-> 公共 Lumin API、资源所有权和 Minecraft 接入边界见
-> [Lumin GUI 集成边界](gui-library.md)。
+> `gui/lib` 的 API、边界和使用示例见 [GUI Library 文档](gui-library.md)。
 
 ## 业务宿主
 
-Epsilon 的 GUI 由四类宿主组成：
+Epsilon 的 GUI 由以下 Screen 宿主组成，业务状态和输入交互都在宿主内，渲染统一提交到 `UiScene`：
 
 - `PanelScreen`：模块浏览、Setting 编辑和客户端数据页。
 - `DropdownScreen`：可拖动分类面板、搜索和 Setting 控件。
-- `MainMenuScreen`：主菜单背景与操作入口。
+- `MainMenuScreen`：主菜单背景（视频或 `GlslSandBox` 着色器）与操作入口。
 - `HudEditorScreen`：HUD 布局、锚点、选择框和预览。
+- `WelcomeScreen` / `AccountsScreen`：欢迎页和账号管理。
 
-这些宿主持有业务状态和输入交互，不拥有另一套通用 GUI 库。几何、树、场景和文本类型直接来自
-LuminGraphics；Minecraft runtime 适配来自 LuminGraphics-MC。
+每个 Screen 各持有一个 `UiScene`，在 `extractRenderState(GuiGraphicsExtractor, int, int, float)` 中
+`beginFrame()` → 构建 `UiTree` → 提交 → `endFrame()`/`flush()` + `clear()`。
 
 ## 渲染链
 
 ```mermaid
 flowchart LR
-    A["Screen extraction / HUD event"] --> B["UiCoordinateMapper"]
-    B --> C["Build UiTree"]
-    C --> D["Submit UiScene layers"]
-    D --> E["MinecraftUiRuntime2612"]
-    E --> F["Minecraft extraction bridge"]
-    E --> G["PrismRHI"]
+    A["Screen extract / Render2DEvent"] --> B["UiScene"]
+    B --> C["UiRenderBatch（语义 layer）"]
+    C --> D["Render2DScheduler"]
+    D --> E["Lumin renderers / EpsilonGuiRenderer"]
 ```
 
-每个 Screen 每帧只使用一个 `UiScene`。调用 `MinecraftUiRuntime2612.current()` 后先配置字体，
-再在 `runtime.render(...)` 回调中构建和提交节点。Screen 移除或 runtime 变化时关闭旧 scene。
+`MixinGuiRenderer` 在 `GuiRenderer.render` 头部依次发布 `Render2DEvent.Level` 与 `Render2DEvent.HUD`，
+`HudElementManager` 与各模块在这些事件中提交命令；原版提取结果随后由 `EpsilonGuiRenderer` 统一输出。
 
 ## Panel 与 Dropdown
 
-Panel 业务组件位于 `gui/panel`，Dropdown 业务组件位于 `gui/dropdown`。Setting 的可见性、分组和
-布局仍由 SettingHost 与相邻 controller/view 决定；公共 Lumin 树不读取 Module 或 Setting。
+Panel 业务组件位于 `gui/panel`（`adapter/` 承载 `SettingListController`、`SettingViewFactory`、
+`ModuleViewModel`，`view/` 承载各面板），Dropdown 业务组件位于 `gui/dropdown`。Setting 的可见性、分组和
+布局仍由 SettingHost、`SettingLayoutPlanner` 与相邻 adapter/view 决定；`gui/lib` 不读取 Module 或
+Setting。
 
-Popup 由宿主统一管理，使用 `UiLayer.POPUP`。滚动区域的 scissor 和滚动条必须提交到宿主 scene，
-不得为每个 Panel 或列表创建独立 renderer。存在 painter order 的 background、content、floating 和
-popup pass 必须使用显式相对 layer。
+PanelScreen 的语义 layer 使用：
+
+- `CHROME -20`：主面板、rail、modules/detail 背景。
+- `CONTENT -20`：Category rail；`CONTENT 0`：模块列表；`CONTENT 10`：客户端设置页；
+  `CONTENT 20`：模块详情。
+- `POPUP`：弹窗外壳和弹窗普通图元。
+
+DropdownScreen 用 `scene.batch(UiLayer.CONTENT)` 提交所有面板，弹窗单独提交到 `UiLayer.POPUP`，
+最后 `scene.flush()`。存在 painter order 的 background、content、floating 和 popup pass 必须使用
+显式 layer 或相对 layer。
+
+## Setting 分组渲染
+
+`SettingLayoutPlanner` 把显式 SettingGroup 规划成 section 树：`Section.elements()` 按声明顺序保留
+「直接 Setting」与「子分组」的交错关系，`Section.children()` 只是过滤后的子分组视图。GUI 只消费
+section 树，不推断分组结构。
+
+- Dropdown 的 `SettingSectionRenderer` 统一服务 `SettingsContent` 与 `ModuleButton`：绘制坐标使用调用
+  方 scope 的局部坐标，命中测试使用 `局部坐标 + hitOffset` 的绝对坐标，控件的绝对位置缓存因此可直接
+  参与命中。
+- 展开的分组绘制整块卡片背景，覆盖组头与子内容（`DropdownTheme.groupCardBackground`），组头悬浮层叠
+  在卡片之上；嵌套层级通过 `DropdownTheme.groupNestInset` 递增缩进，表面色随层级变浅，达到
+  `GROUP_DEPTH_LIMIT` 后不再增加缩进与色差，并在宽度不足时自动收敛。
+- Panel 的 `SettingListController` 递归绘制同样的卡片：`GROUP_NEST_INSET` 控制每层缩进，`groupSurface`
+  与 `groupOutline` 控制嵌套配色，顶部卡片保持原有外观。
+- 组头的数量徽标使用 `Section.totalSettingCount()`，即自身与所有子孙分组的 Setting 总数。
+- 父分组折叠时子孙不绘制、不参与命中与按键分发；折叠任意层级的分组会递归 blur 该子树内的文本、滑条与
+  颜色输入。
+
+## Popup
+
+Popup 由 `PanelPopupHost` 统一管理，使用 `UiLayer.POPUP`；可滚动内容进入 `UiContentBuffer`，
+普通图元仍由主 scene 输出。Popup 的私有缓冲通过 `popupHost.flush()` 在 scene flush 之后释放。
 
 ## HUD
 
-`HudElementHolder` 在原版 HUD 提取结束后构建独立 HUD tree。每个启用的 `HudModule` 通过
-`appendToTree` 向隔离的子 scope 追加节点，整棵树一次提交。HUD Editor 预览复用同一路径，并将
-HUD tree 放在 editor chrome 的独立相对 layer；不得再逐元素调用独立 batch。
+`HudElementManager` 在 `Render2DEvent.HUD` 中构建整帧 HUD：
 
-HUD 尺寸通过 `setBounds()` 更新，移动通过 anchor/move API 完成。HUD 的原版物品和其他
-`GuiGraphicsExtractor` overlay 继续走 `renderOverlay`，不塞入 Lumin UI tree。
+- 每个启用的 `HudModule` 调用 `updateLayout()` 后通过 `renderWithBatch(deltaTracker, batch)` 把节点
+  追加到共享 `UiScene`，整帧只 flush 一次。
+- 原版物品等 `GuiGraphicsExtractor` overlay 走 `renderOverlay(graphics, deltaTracker)`，不进入 GUI 树。
+- `HudEditorScreen.renderPendingHudElements()` 在独立的 HUD Editor render target 上以
+  `CONTENT -40` 提交 HUD 预览，编辑器 chrome 与预览保持分离。
+- HUD 尺寸通过 `setBounds()` 更新，位置通过 `moveTo`/`moveBy` 和 anchor API 修改；锚点数学由
+  `HudLayoutHelper` 提供，不得绕过 anchor 状态直接写持久化坐标。
 
 ## 坐标和命中
 
-所有 Screen 输入先通过 `UiCoordinateMapper` 转换到 Lumin 投影坐标。布局、文本测量、scissor 和
-命中测试使用同一逻辑尺寸，不得额外除以 GUI scale。Dropdown 的拖动 delta 也必须转换到投影空间。
+GUI 使用 Lumin 逻辑坐标。鼠标位置通过 `LuminRenderSystem.toEpsilonMouseX/Y(...)` 转换，
+scissor 通过 `LuminRenderSystem.toFramebufferScissor(...)` 转换；布局、文本测量、scissor 和命中测试
+共享同一逻辑尺寸，不得额外除以 GUI scale。世界坐标到屏幕坐标使用 `WorldToScreen`。
 
 ## 字体和主题
 
-`ClientSetting.configureMinecraftFonts(runtime)` 统一注册默认字体、图标字体和其他 font id。
-绘制与测量必须使用相同 font id 和 scale。业务色通过 `EpsilonUiTheme.lumin` 转换，不得在控件中
-维护独立 atlas 或 renderer。自定义字体的相对值从 `.epsilon/fonts/` 和操作系统字体目录解析，
-不使用 Minecraft 的当前运行目录。`Font Scale` 在 LuminGraphics-MC 的 UI 文字基准倍率上继续缩放，
-对默认字体和自定义字体同时生效，并保持绘制与测量一致。
+`StaticFontLoader.defaultFont()` 解析默认/自定义字体，`TtfFontLoader` 负责 glyph atlas 与每帧上传预算。
+缺字由 `TtfFontLoader.getFallbackGlyph(int)` 的“口”字形占位框顶上（占位字形同样写入 atlas），
+真实字形上传后自动换回；空白与控制字符不画占位框。
+绘制与测量必须使用相同 font loader 和 scale。主题由 `MD3Theme` 生成调色板，业务代码通过
+`EpsilonUiTheme.INSTANCE` 以 `UiTheme` 接口访问，不得在控件中维护独立颜色表或 renderer。
+
+## 液态玻璃材质
+
+`ClientSetting.themeGlass`（Liquid Glass，默认开启）控制玻璃材质，与 Theme Mode / Theme Preset 互不绑定；
+`ClientSetting.themeGlassOpacity`（Glass Opacity，0.0~1.0，步长 0.05，默认 1.0）在开启状态下按倍率缩放玻璃的 alpha：
+
+- `MD3Theme.glassPane` / `glassSection` / `glassPopup` / `glassRow` 只改不透明度与轻微提亮，保留主题色相；
+  关闭开关时原样返回传入颜色（`glassPopup` 保持原本的全不透明表面）。
+- `MD3Theme.glassOpacity()` 读取倍率，`MD3Theme.glassAlpha(int)` 是唯一的缩放入口；只有“因启用玻璃而降低
+  不透明度”的颜色可以经过它（玻璃表面、`rowSurface` 的高亮叠加、`DropdownTheme` 的模块行、`glassRim` 的边缘
+  与高光），普通不透明表面不得缩放，否则会连带改变非玻璃配色。
+- 倍率不影响实时背景模糊：`submitGlassBlur` 始终按 `GLASS_BLUR_STRENGTH` 执行，只由 Liquid Glass 开关控制。
+- `MD3Theme.submitGlassBlur(x, y, w, h, radius)` 提交实时背景模糊，内部走 `BlurShader.INSTANCE.render`。
+  该调用**立即执行**：先模糊、再记录玻璃表面，否则会把已经画好的 UI 一起糊掉。
+- `MD3Theme.glassRim(scope, ...)` 画玻璃边缘的细描边与顶部高光线，必须在玻璃表面之后调用。
+
+Panel 与 Dropdown 都把 UI 画进离屏 target，`BlurShader` 的取样源因此是主 target（世界/背景），
+结果写回离屏 target，正好形成“背景模糊 + 玻璃叠加”的效果。
+
+## GUI 窗口背景不透明度
+
+`ClientSetting.guiBackgroundOpacity`（Background Opacity，0.0~1.0，步长 0.05，默认 1.0）是**与玻璃材质正交**的
+第二个倍率：玻璃决定背景“是什么材质”，本倍率决定背景“有多不透明”。因此它不依赖 Liquid Glass 开关，关闭玻璃后
+仍可把原本不透明的表面调透明。
+
+- 入口是 `MD3Theme.backgroundOpacity()` / `backgroundAlpha(int)` / `applyBackgroundOpacity(Color)`；调用方先决定
+  材质（`glassPane` / `glassSection`），再由 `applyBackgroundOpacity` 压缩不透明度。两个倍率在背景块上相乘。
+- 作用范围是 GUI 里所有**背景块**：Panel 模式的主面板与导航栏/模块列表/详情三个分区卡片（`PanelScreen.drawChrome`）、
+  Dropdown 模式的每个面板（`DropdownTheme.panelBackground`）、两种模式的模块按钮与行（`DropdownTheme.moduleEnabled` /
+  `moduleDisabled`、`MD3Theme.rowSurface`）、下拉分组卡片（`DropdownTheme.groupCardBackground`）与下拉设置表面
+  （`DropdownTheme.settingSurface`）。
+- 缩放必须包在建好材质之后的**最终颜色**上（含关闭玻璃的分支），否则调低倍率时这些大块仍是不透明表面；
+  本轮修复的正是 `moduleEnabled` / `moduleDisabled` / `rowSurface` 漏缩放导致模块按键不跟随的问题。
+- 只画背景块，不含其内部控件与前景：文本、图标、描边（`glassRim`、`groupCardOutline`）、悬浮/选中叠加
+  （`stateLayer`）、开关与滑块轨道、输入框、按键绑定芯片、滚动条，以及弹窗（`glassPopup`，如颜色选择器、枚举选择）。
+  这些保持全不透明以保证可读性与可点性。
+- **背景模糊层本身也随本倍率淡出**。`submitGlassBlur` 写入的是一块 alpha≈1 的模糊斑，它才是面板“背景”的实体；
+  不缩放它就会出现「背景透明度调到 0，背景仍然发黑、发虚」——Glass Opacity 也压不住这一层。实现方式是给
+  `BlurShader` 增加表面不透明度参数：着色器在 `SegmentInfo.y` 取该值并缩放输出 alpha，`SegmentInfo` 原有的
+  `y/z/w` 未使用，因此 UBO 尺寸与布局完全不变。HUD/世界侧的模糊沿用 `opacity = 1.0` 的重载，不受 GUI 设置影响。
+- `glassRim` 的边缘与高光同时乘 `Glass Opacity` 与 `Background Opacity`；背景全透明时二者都归零，
+  否则会留下悬空边框和一条白色高光线（观感上像散光）。
+- Dropdown 模式独有的整屏模态遮罩（`DropdownTheme.scrim()`，纯黑 alpha 50）也随本倍率淡出，
+  否则背景调透明后整个屏幕仍被压暗；Panel 模式没有这层遮罩。
 
 ## 验证
 
 仓库当前不维护 GUI 测试源码。修改 Screen、HUD 或 layer 顺序后至少运行双平台编译，并启动受影响的
 客户端路径检查坐标、字体、scissor 和 painter order：
 
-```powershell
-.\gradlew.bat :common:compileJava
-.\gradlew.bat :fabric:compileJava :neoforge:compileJava
+```shell
+./gradlew :common:compileJava
+./gradlew :fabric:compileJava :neoforge:compileJava
 ```

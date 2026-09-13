@@ -1,11 +1,16 @@
 package com.github.epsilon.gui.dropdown.widget;
 
+import com.github.epsilon.assets.i18n.EpsilonTranslations;
+import com.github.epsilon.gui.dropdown.DropdownScreen;
 import com.github.epsilon.gui.dropdown.DropdownTheme;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.gui.dropdown.ReisaDropdownCompanion;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.screen.PlatformNoticeScreen;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.managers.Managers;
-import com.github.epsilon.managers.impl.sound.SoundKey;
+import com.github.epsilon.managers.sound.SoundKey;
+import com.github.epsilon.managers.sound.SoundManager;
 import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
@@ -18,14 +23,14 @@ public class EnumWidget extends SettingWidget<EnumSetting<?>> {
 
     private static final float FIELD_HEIGHT = 14.0f;
     private static final float FIELD_RADIUS = 5.0f;
-    private static final float FIELD_TEXT_SCALE = 0.50f;
+    private static final float FIELD_TEXT_SCALE = 0.6f;
     private static final float FIELD_TEXT_PADDING_X = 6.0f;
     private static final float FIELD_ARROW_SIZE = 3.0f;
     private static final float LIST_GAP_Y = 3.0f;
     private static final float LIST_PADDING_Y = 2.0f;
     private static final float OPTION_HEIGHT = 12.0f;
     private static final float OPTION_GAP = 1.0f;
-    private static final float OPTION_TEXT_SCALE = 0.48f;
+    private static final float OPTION_TEXT_SCALE = 0.55f;
 
     private final Animation expandAnim = new Animation(Easing.DECELERATE, DropdownTheme.ANIM_EXPAND);
     private final Animation hoverAnim = new Animation(Easing.EASE_OUT_CUBIC, DropdownTheme.ANIM_HOVER);
@@ -54,9 +59,12 @@ public class EnumWidget extends SettingWidget<EnumSetting<?>> {
                 DropdownTheme.SETTING_PADDING_X,
                 1.0f,
                 DropdownTheme.SETTING_TEXT_SCALE,
-                DropdownTheme.settingLabel()
+                setting.isCurrentValueSupported() ? DropdownTheme.settingLabel() : MD3Theme.TEXT_MUTED
         );
 
+        if (!setting.isCurrentValueSupported()) {
+            drawPlatformBadge(scope, textMetrics, fieldX);
+        }
         drawCurrentValueField(scope, textMetrics, fieldX, fieldY, fieldW, hover, expand);
 
         if (expand > 0.001f && getHiddenModeCount() > 0) {
@@ -80,29 +88,34 @@ public class EnumWidget extends SettingWidget<EnumSetting<?>> {
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (expanded && keyCode == GLFW.GLFW_KEY_ESCAPE) {
             expanded = false;
-            Managers.SOUND.playInUi(SoundKey.SETTINGS_CLOSE);
+            SoundManager.INSTANCE.playInUi(SoundKey.SETTINGS_CLOSE);
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CANCEL);
             return true;
         }
         return false;
     }
 
     private void drawCurrentValueField(UiTree.Scope scope, UiTextMetrics textMetrics, float fieldX, float fieldY, float fieldW, float hover, float expand) {
+        boolean supported = setting.isCurrentValueSupported();
         Color background = MD3Theme.filledFieldSurface(expanded, hover);
         Color outline = MD3Theme.filledFieldIndicator(expanded, hover);
-        float textY = fieldY + (FIELD_HEIGHT - textMetrics.textHeight(FIELD_TEXT_SCALE, null)) * 0.5f;
+        float textY = fieldY + (FIELD_HEIGHT - textMetrics.textHeight(FIELD_TEXT_SCALE)) * 0.5f;
         float arrowCenterX = fieldX + fieldW - 10.0f;
         float arrowCenterY = fieldY + FIELD_HEIGHT * 0.5f;
 
-        scope.roundRect(fieldX, fieldY, fieldW, FIELD_HEIGHT, FIELD_RADIUS, background);
-        scope.outline(fieldX, fieldY, fieldW, FIELD_HEIGHT, FIELD_RADIUS, 0.7f, outline);
+        scope.roundRect(fieldX, fieldY, fieldW, FIELD_HEIGHT, FIELD_RADIUS,
+                supported ? background : MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_HIGH, 255));
+        scope.outline(fieldX, fieldY, fieldW, FIELD_HEIGHT, FIELD_RADIUS, 0.7f,
+                supported ? outline : MD3Theme.OUTLINE_SOFT);
         scope.text(
                 setting.getTranslatedValue(),
                 fieldX + FIELD_TEXT_PADDING_X,
                 textY,
                 FIELD_TEXT_SCALE,
-                MD3Theme.filledFieldContent(expanded)
+                supported ? MD3Theme.filledFieldContent(expanded) : MD3Theme.TEXT_MUTED
         );
-        scope.triangle(arrowCenterX, arrowCenterY, FIELD_ARROW_SIZE, expand, DropdownTheme.expandArrow(expand));
+        scope.triangle(arrowCenterX, arrowCenterY, FIELD_ARROW_SIZE, expand,
+                supported ? DropdownTheme.expandArrow(expand) : MD3Theme.TEXT_MUTED);
     }
 
     private void drawExpandedOptions(UiTree.Scope scope, UiTextMetrics textMetrics, int mouseX, int mouseY, float fieldX, float fieldW, float expand) {
@@ -134,7 +147,10 @@ public class EnumWidget extends SettingWidget<EnumSetting<?>> {
         if ((button == GLFW.GLFW_MOUSE_BUTTON_RIGHT || button == GLFW.GLFW_MOUSE_BUTTON_LEFT)
                 && getHiddenModeCount() > 0) {
             expanded = !expanded;
-            Managers.SOUND.playInUi(expanded ? SoundKey.SETTINGS_OPEN : SoundKey.SETTINGS_CLOSE);
+            SoundManager.INSTANCE.playInUi(expanded ? SoundKey.SETTINGS_OPEN : SoundKey.SETTINGS_CLOSE);
+            DropdownScreen.INSTANCE.react(expanded
+                    ? ReisaDropdownCompanion.Action.PANEL_OPEN
+                    : ReisaDropdownCompanion.Action.PANEL_CLOSE);
             return true;
         }
         return expanded;
@@ -143,13 +159,18 @@ public class EnumWidget extends SettingWidget<EnumSetting<?>> {
     private boolean handleExpandedClick(double mouseX, double mouseY) {
         Enum<?> mode = getHoveredOption(mouseX, mouseY);
         if (mode != null) {
+            if (!setting.isModeSupportedUnchecked(mode)) {
+                PlatformNoticeScreen.showOption(setting, mode);
+                return true;
+            }
             setting.setMode(mode.name());
             expanded = false;
-            Managers.SOUND.playInUi(SoundKey.SETTINGS_CLOSE);
+            SoundManager.INSTANCE.playInUi(SoundKey.SETTINGS_CLOSE);
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
         expanded = false;
-        Managers.SOUND.playInUi(SoundKey.SETTINGS_CLOSE);
+        SoundManager.INSTANCE.playInUi(SoundKey.SETTINGS_CLOSE);
         return false;
     }
 
@@ -191,14 +212,17 @@ public class EnumWidget extends SettingWidget<EnumSetting<?>> {
             );
         }
 
-        float lineHeight = textMetrics.textHeight(OPTION_TEXT_SCALE, null);
+        float lineHeight = textMetrics.textHeight(OPTION_TEXT_SCALE);
         float textY = optionY + (OPTION_HEIGHT - lineHeight) * 0.5f;
         if (textY + lineHeight > visibleBottom) {
             return;
         }
 
         float alpha = Mth.clamp((visibleBottom - optionY) / OPTION_HEIGHT, 0.0f, 1.0f);
-        Color textColor = hovered ? MD3Theme.TEXT_PRIMARY : DropdownTheme.settingLabelMuted();
+        boolean supported = setting.isModeSupportedUnchecked(mode);
+        Color textColor = !supported
+                ? MD3Theme.TEXT_MUTED
+                : hovered ? MD3Theme.TEXT_PRIMARY : DropdownTheme.settingLabelMuted();
         textColor = MD3Theme.withAlpha(textColor, Mth.clamp((int) (textColor.getAlpha() * alpha), 0, 255));
         scope.text(
                 setting.getTranslatedValueUnchecked(mode),
@@ -207,6 +231,29 @@ public class EnumWidget extends SettingWidget<EnumSetting<?>> {
                 OPTION_TEXT_SCALE,
                 textColor
         );
+        if (!supported) {
+            String badge = EpsilonTranslations.PlatformOnly.BADGE.getTranslatedName();
+            float badgeScale = 0.48f;
+            // assist chip 固定 8px 左内边距，左右各留 8px 才能让文字居中。
+            float badgeWidth = textMetrics.textWidth(badge, badgeScale) + 16.0f;
+            float badgeHeight = 11.0f;
+            float badgeX = listX + fieldW - badgeWidth - 8.0f;
+            float badgeY = optionY + (OPTION_HEIGHT - badgeHeight) * 0.5f;
+            scope.chip(new UiRect(badgeX, badgeY, badgeWidth, badgeHeight), badge, badgeScale,
+                    MD3Theme.withAlpha(MD3Theme.TERTIARY_CONTAINER, 255), MD3Theme.ON_TERTIARY_CONTAINER, null, 0.0f, null);
+        }
+    }
+
+    private void drawPlatformBadge(UiTree.Scope scope, UiTextMetrics textMetrics, float trailingX) {
+        String label = EpsilonTranslations.PlatformOnly.BADGE.getTranslatedName();
+        float scale = 0.5f;
+        float width = textMetrics.textWidth(label, scale) + 16.0f;
+        float height = 12.0f;
+        float x = Math.max(DropdownTheme.SETTING_PADDING_X, trailingX - width);
+        float labelHeight = textMetrics.textHeight(DropdownTheme.SETTING_TEXT_SCALE);
+        float y = 1.0f + (labelHeight - height) * 0.5f;
+        scope.chip(new UiRect(x, y, width, height), label, scale,
+                MD3Theme.withAlpha(MD3Theme.TERTIARY_CONTAINER, 255), MD3Theme.ON_TERTIARY_CONTAINER, null, 0.0f, null);
     }
 
     private boolean isFieldHovered(double mouseX, double mouseY) {

@@ -7,58 +7,59 @@
 ```text
 Minecraft.<init> TAIL
   -> fabric/neoforge Loader
-  -> EpsilonFabric/EpsilonNeoForge
+  -> EpsilonFabric / EpsilonNeoForge
   -> 收集并注册 Addon
   -> EpsilonCommon.init()
-  -> 注册平台图形生命周期
 ```
+
+- Fabric：`MixinMinecraftFabric` 调用 `EpsilonFabric.init()`，读取 entrypoint key `epsilon:addon`，
+  并注册 `LanguageReloadListener`。
+- NeoForge：`MixinMinecraft` 调用 `EpsilonNeoForge.init()`，先发布 `EpsilonAddonSetupEvent`，再在
+  `NeoForgeEventHandler` 中注册 `LanguageReloadListener`。
+- 两端在检测到 Iris 时把 TTF 字体 pipeline 注册为 `IrisProgram.TEXTURED`。
 
 `EpsilonCommon.init()` 当前顺序：
 
 1. 设置 `Constants.mc`，注册 `com.github.epsilon` 包的 EventBus lambda factory。
-2. `ModuleHolder.initModules()`。
-3. `HudElementHolder.initElements()`。
-4. `AddonHolder.setupAddons()`。
-5. `ConfigHolder.initConfig()`。
-6. 选择当前语言。
-7. `Managers.initManagers()`。
-8. 初始化 `com.github.epsilon.graphics.schedulers.render3d.Render3DScheduler`，注册 priority `-999` 的统一 flush。
-9. 生成空 i18n 模板，并注册退出时保存配置的 shutdown hook。
+2. `ModuleManager.INSTANCE.initModules()`。
+3. `HudElementManager.INSTANCE.initElements()`。
+4. `AddonManager.INSTANCE.setupAddons()`。
+5. 预热运行时 Manager：`ExecutorManager`、`ClientboundPacketManager`、`ServerboundPacketManager`、
+   `TargetManager`、`ExtrapolationManager`、`HealthManager`、`SkinManager`。
+6. `ConfigManager.INSTANCE.initConfig()`，随后选择当前语言。
+7. 初始化 `Render3DScheduler` 的 RenderPipeline。
+8. 生成空 i18n 模板，并注册退出时保存配置的 shutdown hook。
 
-## LuminGraphics-MC runtime
+## Manager 组织
 
-Fabric 和 NeoForge 的平台入口绑定当前 Minecraft context，并把 Loader 无关的生命周期交给
-LuminGraphics-MC。`MinecraftUiRuntime2612` 在渲染线程管理字体、glyph atlas、Minecraft 纹理、render
-target、native extraction bridge、资源重载处理和 2D frame resources；关闭时只释放 Epsilon/Lumin
-拥有的包装器，不关闭借入的 Minecraft image、view 或 native handle。
+26.2.x 不再使用 Holders 包和 `Managers` 静态字段容器。所有 Manager 都是带
+`public static final Xxx INSTANCE` 与私有构造函数的单例，通过 `INSTANCE` 直接访问：
 
-Epsilon 业务 UI 直接使用公共 Lumin `UiTree`/`UiScene` 类型。`MinecraftGuiExtractionBridge2612` 把原版
-`GuiGraphicsExtractor` 的 native state 提交给 LuminGraphics-MC，原版 overlay 因此可以与声明式 UI
-共享同一帧。常规 HUD 在原版 HUD 提取结束、当前 Screen 提取开始前构建并提交独立 `UiTree`，保证
-Dropdown/Panel GUI 的命令录制和原版节点都位于 HUD 之后。共享代码不导入 Fabric 或 NeoForge API。
-
-## 保留的 3D 与共享组件
-
-2D 迁移不改变 Epsilon 的 3D/shared 路径。`Render3DScheduler`、`LuminRenderSystem` 以及现有 3D
-shaders、buffers 和 immediate renderer 仍在 `common/` 中创建、提交和按原有 priority/sequence 规则
-flush。2D runtime 的资源所有权和帧边界不得替代这些 3D 路径。
-
-## Holders
-
-| Holder | 职责 |
+| Manager | 职责 |
 |---|---|
-| `ModuleHolder` | 注册本体/Addon 模块，处理键盘与鼠标绑定 |
-| `HudElementHolder` | 注册 HUD，构建独立 `UiTree` 后通过公共 Lumin `UiScene` 统一提交，并处理原版 overlay |
-| `AddonHolder` | Addon 去重、一次性 setup 与查询 |
-| `ConfigHolder` | 多配置、导入导出、Setting/custom state、好友与迁移 |
-| `TranslateHolder` | 跟踪 `TranslateComponent`，切换语言时刷新缓存 |
-| `RenderTargetHolder` | 跟踪仍由 Epsilon 创建的 render target |
-| `ShaderHolder` | 手部/箱子 outline 和保留的共享 shader 状态 |
+| `ModuleManager` | 注册本体/Addon 模块，处理键盘与鼠标绑定 |
+| `HudElementManager` | 注册 HUD，持有共享 `UiScene`，统一提交 HUD 帧与原版 overlay |
+| `AddonManager` | Addon 去重、一次性 setup 与查询 |
+| `ConfigManager` | 多配置、导入导出、Setting/custom state、好友与账号数据 |
+| `TranslationManager` | 跟踪 `TranslateComponent`，语言变化时刷新缓存 |
+| `RendererManager` / `RenderTargetManager` | 跟踪 Epsilon 创建的 renderer 与 render target |
+| `ShaderManager` | 手部/箱子 outline 等共享 shader 状态 |
+| `AccountManager` / `SkinManager` / `QQAvatarManager` | 账号、皮肤与头像资源 |
+| `ExecutorManager` / `TimerManager` / `VideoManager` | 线程池、计时与视频播放 |
+| `AssetManager` | 视频/玲纱/FFmpeg 资源的按需下载、缓存与纹理注册 |
 
-## Managers
+`RotationManager` 是抽象基类，实现为 `SilentRotationManager` 与 `SnapRotationManager`。它的
+`INSTANCE` 是可变静态字段，`RotationManager.switchRotationManager(mode)` 会按模式复用缓存实例、
+通过 `copyStateFrom()` 迁移状态并替换实例，调用方必须每次重新读取。模块级转头方式只能通过
+`RotationManager.request(...)` 提交，由 `ClientSetting.rotationScope` 决定用全局模式还是模块自身设置。
 
-运行时管理器通过 `Managers` 的静态字段访问：
+其余运行时管理器包括 `TargetManager`、`HealthManager`、`ExtrapolationManager`、`FriendManager`、
+`NotificationManager`、`SoundManager`、`ClientboundPacketManager` 与 `ServerboundPacketManager`。
 
-`ROTATION`、`EXTRAPOLATION`、`TARGET`、`HEALTH`、`C2SPACKET`、`S2CPACKET`、`FRIEND`、`SOUND`、`NOTIFICATION`、`TIMER`。
+## 渲染资源生命周期
 
-这些字段由 `Managers.initManagers()` 初始化。其中 Rotation Manager 可在运行时因模式切换而替换，调用方应通过 `Managers.ROTATION` 获取当前实例。
+- `RendererManager.INSTANCE.register(...)` 登记业务 renderer，`destroyAll()` 在关闭时统一释放。
+- `RenderTargetManager.INSTANCE` 管理 `LuminRenderSystem.LuminRenderTarget`，帧内借入的 Minecraft
+  texture、view 与 native handle 不由 Epsilon 关闭。
+- `Render2DScheduler` 由 `UiScene` 持有；Screen 或 HUD 帧结束后 `endFrame()` 会 flush 并清空命令流。
+- `Render3DScheduler.INSTANCE` 订阅 `Render3DEvent` 并在 priority `-999` 统一 flush。

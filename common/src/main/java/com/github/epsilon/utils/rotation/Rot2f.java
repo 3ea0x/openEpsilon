@@ -8,7 +8,7 @@ public class Rot2f {
     /**
      * 创建偏航角和俯仰角组成的旋转值。
      *
-     * @param yaw 偏航角
+     * @param yaw   偏航角
      * @param pitch 俯仰角
      */
     public Rot2f(float yaw, float pitch) {
@@ -55,7 +55,7 @@ public class Rot2f {
     /**
      * 同时更新该旋转值。
      *
-     * @param yaw 偏航角
+     * @param yaw   偏航角
      * @param pitch 俯仰角
      */
     public void set(float yaw, float pitch) {

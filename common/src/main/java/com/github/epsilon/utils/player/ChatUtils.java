@@ -37,7 +37,7 @@ public class ChatUtils {
     /**
      * 向客户端聊天栏添加消息。
      *
-     * @param prefix 是否添加 Epsilon 消息前缀
+     * @param prefix  是否添加 Epsilon 消息前缀
      * @param message 消息内容
      */
     public static void addChatMessage(boolean prefix, String message) {
@@ -47,15 +47,15 @@ public class ChatUtils {
     /**
      * 向客户端聊天栏添加消息。
      *
-     * @param prefix 是否添加 Epsilon 消息前缀
+     * @param prefix  是否添加 Epsilon 消息前缀
      * @param message 消息内容
      */
     public static void addChatMessage(boolean prefix, Component message) {
         Component component = buildClientMessage(prefix, message);
         if (mc.isSameThread()) {
-            mc.gui.getChat().addClientSystemMessage(component);
+            mc.gui.hud.getChat().addClientSystemMessage(component);
         } else {
-            mc.execute(() -> mc.gui.getChat().addClientSystemMessage(component));
+            mc.execute(() -> mc.gui.hud.getChat().addClientSystemMessage(component));
         }
     }
 
@@ -63,7 +63,7 @@ public class ChatUtils {
      * 向客户端聊天栏添加消息。
      *
      * @param message 消息内容
-     * @param hash 用于替换同一条聊天消息的稳定标识
+     * @param hash    用于替换同一条聊天消息的稳定标识
      */
     public static void addChatMessage(String message, int hash) {
         addChatMessage(true, Component.literal(message), hash);
@@ -73,7 +73,7 @@ public class ChatUtils {
      * 向客户端聊天栏添加消息。
      *
      * @param message 消息内容
-     * @param hash 用于替换同一条聊天消息的稳定标识
+     * @param hash    用于替换同一条聊天消息的稳定标识
      */
     public static void addChatMessage(Component message, int hash) {
         addChatMessage(true, message, hash);
@@ -82,9 +82,9 @@ public class ChatUtils {
     /**
      * 向客户端聊天栏添加消息。
      *
-     * @param prefix 是否添加 Epsilon 消息前缀
+     * @param prefix  是否添加 Epsilon 消息前缀
      * @param message 消息内容
-     * @param hash 用于替换同一条聊天消息的稳定标识
+     * @param hash    用于替换同一条聊天消息的稳定标识
      */
     public static void addChatMessage(boolean prefix, String message, int hash) {
         addChatMessage(prefix, Component.literal(message), hash);
@@ -93,23 +93,23 @@ public class ChatUtils {
     /**
      * 向客户端聊天栏添加消息。
      *
-     * @param prefix 是否添加 Epsilon 消息前缀
+     * @param prefix  是否添加 Epsilon 消息前缀
      * @param message 消息内容
-     * @param hash 用于替换同一条聊天消息的稳定标识
+     * @param hash    用于替换同一条聊天消息的稳定标识
      */
     public static void addChatMessage(boolean prefix, Component message, int hash) {
         Component component = buildClientMessage(prefix, message);
         if (mc.isSameThread()) {
-            ((ChatComponentAccessor) mc.gui.getChat()).epsilon$addClientSystemMessage(component, hash);
+            ((ChatComponentAccessor) mc.gui.hud.getChat()).epsilon$addClientSystemMessage(component, hash);
         } else {
-            mc.execute(() -> ((ChatComponentAccessor) mc.gui.getChat()).epsilon$addClientSystemMessage(component, hash));
+            mc.execute(() -> ((ChatComponentAccessor) mc.gui.hud.getChat()).epsilon$addClientSystemMessage(component, hash));
         }
     }
 
     /**
      * 构建可选带 Epsilon 前缀的客户端聊天消息。
      *
-     * @param prefix 是否添加 Epsilon 消息前缀
+     * @param prefix  是否添加 Epsilon 消息前缀
      * @param message 消息内容
      * @return 操作结果
      */
@@ -120,7 +120,7 @@ public class ChatUtils {
     /**
      * 构建可选带 Epsilon 前缀的客户端聊天消息。
      *
-     * @param prefix 是否添加 Epsilon 消息前缀
+     * @param prefix  是否添加 Epsilon 消息前缀
      * @param message 消息内容
      * @return 操作结果
      */

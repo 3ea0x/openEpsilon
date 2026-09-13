@@ -1,20 +1,18 @@
 package com.github.epsilon.utils.player;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.*;
-import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
-import net.minecraft.world.item.enchantment.ItemEnchantments;
 import net.minecraft.world.item.equipment.Equippable;
 import net.minecraft.world.level.block.*;
 
 import java.util.*;
+
+import static com.github.epsilon.Constants.mc;
 
 public class InvHelper {
 
@@ -88,22 +86,6 @@ public class InvHelper {
             Items.DIAMOND_PICKAXE,
             Items.NETHERITE_PICKAXE
     );
-    private static final Minecraft mc = Minecraft.getInstance();
-
-    private static int getEnchantmentLevel(ItemStack stack, ResourceKey<Enchantment> enchantmentKey) {
-        if (stack == null || stack.isEmpty()) {
-            return 0;
-        }
-
-        ItemEnchantments enchantments = stack.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY);
-        for (it.unimi.dsi.fastutil.objects.Object2IntMap.Entry<net.minecraft.core.Holder<Enchantment>> entry : enchantments.entrySet()) {
-            if (entry.getKey().is(enchantmentKey)) {
-                return entry.getIntValue();
-            }
-        }
-
-        return 0;
-    }
 
     /**
      * 判断当前界面是否应禁用背包辅助功能。
@@ -245,8 +227,8 @@ public class InvHelper {
     public static boolean isSharpnessAxe(ItemStack stack) {
         return !stack.isEmpty()
                 && stack.getItem() instanceof AxeItem
-                && getEnchantmentLevel(stack, Enchantments.SHARPNESS) >= 8
-                && getEnchantmentLevel(stack, Enchantments.SHARPNESS) < 50;
+                && EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.SHARPNESS) >= 8
+                && EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.SHARPNESS) < 50;
     }
 
     /**
@@ -258,7 +240,7 @@ public class InvHelper {
     public static boolean isGodAxe(ItemStack stack) {
         return !stack.isEmpty()
                 && stack.getItem() == Items.GOLDEN_AXE
-                && getEnchantmentLevel(stack, Enchantments.SHARPNESS) > 100;
+                && EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.SHARPNESS) > 100;
     }
 
     /**
@@ -290,7 +272,7 @@ public class InvHelper {
     public static boolean isKBBall(ItemStack stack) {
         return !stack.isEmpty()
                 && stack.getItem() == Items.SLIME_BALL
-                && getEnchantmentLevel(stack, Enchantments.KNOCKBACK) > 1;
+                && EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.KNOCKBACK) > 1;
     }
 
     /**
@@ -302,7 +284,7 @@ public class InvHelper {
     public static boolean isKBStick(ItemStack stack) {
         return !stack.isEmpty()
                 && stack.getItem() == Items.STICK
-                && getEnchantmentLevel(stack, Enchantments.KNOCKBACK) > 1;
+                && EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.KNOCKBACK) > 1;
     }
 
     /**
@@ -370,7 +352,7 @@ public class InvHelper {
      * @return 获取或计算得到的结果
      */
     public static int getPunchLevel(ItemStack stack) {
-        return getEnchantmentLevel(stack, Enchantments.PUNCH);
+        return EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.PUNCH);
     }
 
     /**
@@ -380,7 +362,7 @@ public class InvHelper {
      * @return 获取或计算得到的结果
      */
     public static int getPowerLevel(ItemStack stack) {
-        return getEnchantmentLevel(stack, Enchantments.POWER);
+        return EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.POWER);
     }
 
     /**
@@ -816,10 +798,10 @@ public class InvHelper {
         }
 
         float valence = 10.0F;
-        valence += getEnchantmentLevel(stack, Enchantments.PUNCH);
-        valence += getEnchantmentLevel(stack, Enchantments.INFINITY);
-        valence += getEnchantmentLevel(stack, Enchantments.FLAME);
-        valence += getEnchantmentLevel(stack, Enchantments.POWER) / 10.0F;
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.PUNCH);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.INFINITY);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.FLAME);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.POWER) / 10.0F;
         return valence + (float) stack.getDamageValue() / (float) stack.getMaxDamage();
     }
 
@@ -835,10 +817,10 @@ public class InvHelper {
         }
 
         float valence = 10.0F;
-        valence += getEnchantmentLevel(stack, Enchantments.PUNCH) / 10.0F;
-        valence += getEnchantmentLevel(stack, Enchantments.INFINITY);
-        valence += getEnchantmentLevel(stack, Enchantments.FLAME);
-        valence += getEnchantmentLevel(stack, Enchantments.POWER);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.PUNCH) / 10.0F;
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.INFINITY);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.FLAME);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.POWER);
         return valence + (float) stack.getDamageValue() / (float) stack.getMaxDamage();
     }
 
@@ -864,7 +846,7 @@ public class InvHelper {
             return 0.0F;
         }
 
-        int efficiency = getEnchantmentLevel(stack, Enchantments.EFFICIENCY);
+        int efficiency = EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.EFFICIENCY);
         if (efficiency > 0) {
             valence += efficiency * 0.0075F;
         }
@@ -879,7 +861,7 @@ public class InvHelper {
 
         final float[] damage = {0.0F};
         stack.forEachModifier(EquipmentSlot.MAINHAND, (attribute, modifier) -> {
-            if (attribute.equals(Attributes.ATTACK_DAMAGE)) {
+            if (attribute == Attributes.ATTACK_DAMAGE) {
                 damage[0] += getAttributeModifierAmount(modifier);
             }
         });
@@ -887,7 +869,7 @@ public class InvHelper {
     }
 
     private static float getSharpnessBonus(ItemStack stack) {
-        int level = getEnchantmentLevel(stack, Enchantments.SHARPNESS);
+        int level = EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.SHARPNESS);
         return level > 0 ? 0.5F * level + 0.5F : 0.0F;
     }
 
@@ -942,16 +924,16 @@ public class InvHelper {
         final float[] armor = {0.0F};
         final float[] toughness = {0.0F};
         stack.forEachModifier(slot, (attribute, modifier) -> {
-            if (attribute.equals(Attributes.ARMOR)) {
+            if (attribute == Attributes.ARMOR) {
                 armor[0] += getAttributeModifierAmount(modifier);
-            } else if (attribute.equals(Attributes.ARMOR_TOUGHNESS)) {
+            } else if (attribute == Attributes.ARMOR_TOUGHNESS) {
                 toughness[0] += getAttributeModifierAmount(modifier);
             }
         });
 
         return armor[0] * 100.0F
                 + toughness[0] * 10.0F
-                + getEnchantmentLevel(stack, Enchantments.PROTECTION);
+                + EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.PROTECTION);
     }
 
     /**
@@ -966,9 +948,9 @@ public class InvHelper {
         }
 
         int valence = 0;
-        valence += getEnchantmentLevel(stack, Enchantments.QUICK_CHARGE);
-        valence += getEnchantmentLevel(stack, Enchantments.MULTISHOT);
-        valence += getEnchantmentLevel(stack, Enchantments.PIERCING);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.QUICK_CHARGE);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.MULTISHOT);
+        valence += EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.PIERCING);
         return valence;
     }
 
@@ -985,11 +967,11 @@ public class InvHelper {
 
         if (stack.getItem() instanceof AxeItem
                 && stack.getItem() == Items.GOLDEN_AXE
-                && getEnchantmentLevel(stack, Enchantments.SHARPNESS) > 100) {
+                && EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.SHARPNESS) > 100) {
             return true;
         }
 
-        if (stack.getItem() == Items.SLIME_BALL && getEnchantmentLevel(stack, Enchantments.KNOCKBACK) > 1) {
+        if (stack.getItem() == Items.SLIME_BALL && EnchantmentUtils.getEnchantmentLevel(stack, Enchantments.KNOCKBACK) > 1) {
             return true;
         }
 
@@ -1034,7 +1016,7 @@ public class InvHelper {
      * @return 判断结果
      */
     public static boolean isValidStack(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof BlockItem) || stack.getCount() <= 1) {
+        if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof BlockItem)) {
             return false;
         }
 

@@ -1,12 +1,12 @@
 package com.github.epsilon.gui.panel.view;
 
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiContentBuffer;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
-import com.github.slmpc.lumingraphics.ui.state.UiInvalidationState;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiContentBuffer;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
+import com.github.epsilon.gui.lib.state.UiInvalidationState;
 import com.github.epsilon.gui.panel.PanelState;
 import com.github.epsilon.gui.panel.adapter.SettingListController;
 import com.github.epsilon.gui.panel.component.PanelElements;
@@ -16,7 +16,7 @@ import com.github.epsilon.gui.panel.utils.ScrollBarDragState;
 import com.github.epsilon.gui.panel.utils.ScrollBarUtils;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.holders.TranslateHolder;
+import com.github.epsilon.managers.TranslationManager;
 import com.github.epsilon.modules.Module;
 import com.github.epsilon.settings.Setting;
 import com.github.epsilon.settings.SettingLayoutPlanner;
@@ -36,8 +36,9 @@ import java.util.List;
 public class ModuleDetailPanel implements AutoCloseable {
 
     protected final PanelState state;
-    private final UiTextMetrics textRenderer;
+    private final TextRenderer textRenderer;
     private final SettingListController settingListController;
+    private final UiContentBuffer contentBuffer = new UiContentBuffer(EpsilonUiTheme.INSTANCE);
     private final UiInvalidationState contentState = new UiInvalidationState();
     private UiRect bounds;
     private int guiHeight;
@@ -56,7 +57,7 @@ public class ModuleDetailPanel implements AutoCloseable {
     private final Animation hiddenHoverAnimation = new Animation(Easing.EASE_OUT_CUBIC, 120L);
     private long lastContentSignature = Long.MIN_VALUE;
 
-    public ModuleDetailPanel(PanelState state, UiTextMetrics textRenderer, PanelPopupHost popupHost) {
+    public ModuleDetailPanel(PanelState state, TextRenderer textRenderer, PanelPopupHost popupHost) {
         this.state = state;
         this.textRenderer = textRenderer;
         this.settingListController = new SettingListController(popupHost);
@@ -69,7 +70,6 @@ public class ModuleDetailPanel implements AutoCloseable {
     }
 
     public void render(GuiGraphicsExtractor GuiGraphicsExtractor, UiRenderBatch renderBatch, UiRect bounds, int mouseX, int mouseY, float partialTick) {
-        UiContentBuffer contentBuffer = new UiContentBuffer(renderBatch);
         this.bounds = bounds;
         this.guiHeight = GuiGraphicsExtractor.guiHeight();
 
@@ -89,7 +89,7 @@ public class ModuleDetailPanel implements AutoCloseable {
         Module module = state.getSelectedModule();
         String detailTitle = module == null ? EpsilonTranslations.Gui.NO_MODULE.getTranslatedName() : module.getTranslatedName();
         float titleScale = 0.78f;
-        float titleHeight = textRenderer.textHeight(titleScale, null);
+        float titleHeight = textRenderer.getHeight(titleScale);
         float titleY = 10.0f + (MD3Theme.CONTROL_HEIGHT - titleHeight) / 2.0f;
         UiTree headerTree = UiTree.build(scope -> scope.pushAbsolute(bounds, panel ->
                 panel.text(detailTitle, MD3Theme.PANEL_TITLE_INSET, titleY, titleScale, MD3Theme.TEXT_PRIMARY)));
@@ -117,9 +117,10 @@ public class ModuleDetailPanel implements AutoCloseable {
         boolean hasScrollBar = maxDetailScroll > 0;
         float rowWidth = hasScrollBar ? viewport.width() - ScrollBarUtils.TOTAL_WIDTH : viewport.width();
         long contentSignature = buildContentSignature(module, settings, settingOwnerKey);
-        boolean rebuildContent = true;
+        boolean rebuildContent = shouldRebuildContent(bounds, mouseX, mouseY, module, settings, GuiGraphicsExtractor.guiHeight(), contentSignature);
 
         if (rebuildContent) {
+            contentBuffer.clear();
             contentState.beginRebuild();
         }
 
@@ -429,8 +430,8 @@ public class ModuleDetailPanel implements AutoCloseable {
 
             String label = listening ? "..." : formatCompactKeybind(module.getKeyBind());
             float scale = label.length() >= 3 ? 0.42f : 0.5f;
-            float textWidth = textRenderer.textWidth(label, scale, null);
-            float textHeight = textRenderer.textHeight(scale, null);
+            float textWidth = textRenderer.getWidth(label, scale);
+            float textHeight = textRenderer.getHeight(scale);
             float textX = (keybindBounds.width() - textWidth) / 2.0f;
             float textY = (keybindBounds.height() - textHeight) / 2.0f;
             keybind.text(label, textX, textY, scale, foreground);
@@ -482,6 +483,10 @@ public class ModuleDetailPanel implements AutoCloseable {
 
     private String formatKeybind(int keyCode) {
         return KeybindUtils.format(keyCode);
+    }
+
+    public void flushContent() {
+        contentBuffer.flush();
     }
 
     public void markDirty() {
@@ -543,7 +548,7 @@ public class ModuleDetailPanel implements AutoCloseable {
 
     private long buildContentSignature(Module module, List<Setting<?>> settings, String settingOwnerKey) {
         long signature = 17L;
-        signature = signature * 31L + TranslateHolder.INSTANCE.getRevision();
+        signature = signature * 31L + TranslationManager.INSTANCE.getRevision();
         signature = signature * 31L + module.getName().hashCode();
         signature = signature * 31L + module.getBindMode().ordinal();
         signature = signature * 31L + module.getKeyBind();
@@ -562,6 +567,7 @@ public class ModuleDetailPanel implements AutoCloseable {
     @Override
     public void close() {
         settingListController.close();
+        contentBuffer.close();
         markDirty();
     }
 

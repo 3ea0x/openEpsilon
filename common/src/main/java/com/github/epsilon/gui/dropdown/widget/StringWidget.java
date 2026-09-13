@@ -1,15 +1,22 @@
 package com.github.epsilon.gui.dropdown.widget;
 
+import com.github.epsilon.gui.dropdown.DropdownScreen;
 import com.github.epsilon.gui.dropdown.DropdownTheme;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.gui.dropdown.ReisaDropdownCompanion;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.settings.impl.StringSetting;
 
 import java.util.Objects;
 
 public class StringWidget extends SettingWidget<StringSetting> {
 
-    private final DropdownTextField inputField = new DropdownTextField(100);
+    /**
+     * 与 Panel 的 {@code StringSettingRow} 保持一致；过短会把 URL、字体路径一类的长值截断后写回配置。
+     */
+    private static final int MAX_LENGTH = 256;
+
+    private final DropdownTextField inputField = new DropdownTextField(MAX_LENGTH);
 
     public StringWidget(StringSetting setting) {
         super(setting);
@@ -47,6 +54,7 @@ public class StringWidget extends SettingWidget<StringSetting> {
                 inputField.setText(setting.getValue());
             }
             inputField.focusIfContains(mouseX, mouseY, fieldX, fieldY, fieldW, fieldH);
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.TYPING);
             return true;
         }
         if (inputField.isFocused()) {
@@ -63,11 +71,13 @@ public class StringWidget extends SettingWidget<StringSetting> {
         if (keyCode == 257 || keyCode == 335) {
             commitSetting();
             inputField.blur();
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
         if (keyCode == 256) {
             inputField.setText(setting.getValue());
             inputField.blur();
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CANCEL);
             return true;
         }
         if (inputField.keyPressed(keyCode)) {

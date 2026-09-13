@@ -4,13 +4,13 @@ import com.github.epsilon.assets.i18n.EpsilonLanguageManager;
 import com.github.epsilon.assets.i18n.I18NFileGenerator;
 import com.github.epsilon.events.bus.EventBus;
 import com.github.epsilon.graphics.schedulers.render3d.Render3DScheduler;
-import com.github.epsilon.holders.AddonHolder;
-import com.github.epsilon.holders.ConfigHolder;
-import com.github.epsilon.holders.HudElementHolder;
-import com.github.epsilon.holders.ModuleHolder;
-import com.github.epsilon.managers.Managers;
+import com.github.epsilon.managers.*;
+import com.github.epsilon.managers.network.ClientboundPacketManager;
+import com.github.epsilon.managers.network.ServerboundPacketManager;
+import com.github.epsilon.managers.rotation.RotationManager;
+import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.modules.impl.ClientSetting;
-import com.github.epsilon.scripting.lua.LuaScriptManager;
+import net.minecraft.client.Minecraft;
 
 import java.lang.invoke.MethodHandles;
 
@@ -19,30 +19,40 @@ public class EpsilonCommon {
     public static void init() {
         Constants.LOGGER.info("Welcome to " + Constants.NAME + ".");
 
+        Constants.mc = Minecraft.getInstance();
+
         EventBus.INSTANCE.registerLambdaFactory(EpsilonCommon.class.getPackageName(), (lookupInMethod, klass) -> (MethodHandles.Lookup) lookupInMethod.invoke(null, klass, MethodHandles.lookup()));
 
         // 初始化客户端系统
-        ModuleHolder.INSTANCE.initModules();
-        HudElementHolder.INSTANCE.initElements();
-        AddonHolder.INSTANCE.setupAddons();
-        ConfigHolder.INSTANCE.initConfig();
-        EpsilonLanguageManager.INSTANCE.selectLanguage(ClientSetting.INSTANCE.language.getValue());
+        ModuleManager.INSTANCE.initModules();
+        HudElementManager.INSTANCE.initElements();
+
+        // 托管旋转实例依赖已注册的 EventBus lambda factory，必须在事件总线就绪之后创建。
+        // 不能放在 ClientSetting 构造期：该类可能在 Minecraft 构造期间就被加载并订阅事件。
+        RotationManager.switchRotationManager(ClientSetting.INSTANCE.rotationMode.getValue());
 
         // 初始化 Managers
-        Managers.initManagers();
+        ExecutorManager.INSTANCE.getClass();
+        ClientboundPacketManager.INSTANCE.getClass();
+        ServerboundPacketManager.INSTANCE.getClass();
+        TargetManager.INSTANCE.getClass();
+        ExtrapolationManager.INSTANCE.getClass();
+        HealthManager.INSTANCE.getClass();
+        SkinManager.INSTANCE.getClass();
+
+        // 恢复配置
+        ConfigManager.INSTANCE.initConfig();
+        EpsilonLanguageManager.INSTANCE.selectLanguage(ClientSetting.INSTANCE.language.getValue());
 
         // 初始化 Render3DScheduler 里的 RenderPipeline
-        Render3DScheduler.init();
-
-        LuaScriptManager.INSTANCE.init(ClientSetting.INSTANCE.luaScriptsEnabled.getValue());
+        Render3DScheduler.INSTANCE.getClass();
 
         // 生成空的 i18n 文件
         I18NFileGenerator.generate("epsilon-empty-i18n.json");
 
         // 添加一个退出游戏时候的钩子
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            ConfigHolder.INSTANCE.saveNow();
-            LuaScriptManager.INSTANCE.close();
+            ConfigManager.INSTANCE.saveNow();
             Constants.LOGGER.info(Constants.NAME + " saved config on shutdown.");
         }));
 

@@ -1,12 +1,12 @@
 package com.github.epsilon.gui.panel.view;
 
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiContentBuffer;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
-import com.github.slmpc.lumingraphics.ui.state.UiInvalidationState;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiContentBuffer;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
+import com.github.epsilon.gui.lib.state.UiInvalidationState;
 import com.github.epsilon.gui.panel.PanelState;
 import com.github.epsilon.gui.panel.adapter.ModuleViewModel;
 import com.github.epsilon.gui.panel.component.ModuleRow;
@@ -15,9 +15,10 @@ import com.github.epsilon.gui.panel.utils.ScrollBarDragState;
 import com.github.epsilon.gui.panel.utils.ScrollBarUtils;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.holders.TranslateHolder;
-import com.github.epsilon.managers.Managers;
-import com.github.epsilon.managers.impl.sound.SoundKey;
+import com.github.epsilon.gui.utils.ModuleTooltip;
+import com.github.epsilon.managers.TranslationManager;
+import com.github.epsilon.managers.sound.SoundKey;
+import com.github.epsilon.managers.sound.SoundManager;
 import com.github.epsilon.modules.Module;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
@@ -39,7 +40,8 @@ import java.util.List;
 public class ModuleListPanel implements AutoCloseable {
 
     protected final PanelState state;
-    private final UiTextMetrics textRenderer;
+    private final TextRenderer textRenderer;
+    private final UiContentBuffer contentBuffer = new UiContentBuffer(EpsilonUiTheme.INSTANCE);
     private final UiInvalidationState contentState = new UiInvalidationState();
     private UiRect bounds;
     private int guiHeight;
@@ -61,7 +63,7 @@ public class ModuleListPanel implements AutoCloseable {
     private int searchCursorIndex;
     private long lastContentSignature = Long.MIN_VALUE;
 
-    public ModuleListPanel(PanelState state, UiTextMetrics textRenderer) {
+    public ModuleListPanel(PanelState state, TextRenderer textRenderer) {
         this.state = state;
         this.textRenderer = textRenderer;
         this.searchHoverAnimation.setStartValue(0.0f);
@@ -71,10 +73,10 @@ public class ModuleListPanel implements AutoCloseable {
     /**
      * 提取并编译模块列表面板当前帧的 UI。
      * <p>
-     * 面板标题、搜索框和滚动列表内容都写入当前 scene 帧的批次。
+     * 面板标题与搜索框会直接写入主批次；滚动列表内容则写入独立的 viewport 缓冲，
+     * 并在之后的统一 flush 阶段输出。
      */
     public void render(GuiGraphicsExtractor GuiGraphicsExtractor, UiRenderBatch renderBatch, UiRect bounds, int mouseX, int mouseY, float partialTick) {
-        UiContentBuffer contentBuffer = new UiContentBuffer(renderBatch);
         this.bounds = bounds;
         this.guiHeight = GuiGraphicsExtractor.guiHeight();
 
@@ -95,10 +97,11 @@ public class ModuleListPanel implements AutoCloseable {
         boolean hasScrollBar = maxModuleScroll > 0;
         float rowWidth = hasScrollBar ? viewport.width() - ScrollBarUtils.TOTAL_WIDTH : viewport.width();
         long contentSignature = buildContentSignature(modules);
-        boolean rebuildContent = true;
+        boolean rebuildContent = shouldRebuildContent(bounds, mouseX, mouseY, modules, GuiGraphicsExtractor.guiHeight(), contentSignature);
 
         if (rebuildContent) {
             rows.clear();
+            contentBuffer.clear();
             contentState.beginRebuild();
         }
 
@@ -120,10 +123,14 @@ public class ModuleListPanel implements AutoCloseable {
                     Animation selectionAnimation = selectionAnimations.computeIfAbsent(module, ignored -> new Animation(Easing.EASE_OUT_CUBIC, 160L));
                     Animation toggleAnimation = toggleAnimations.computeIfAbsent(module, ignored -> new Animation(Easing.EASE_OUT_ELASTIC, 620L));
                     Animation toggleHoverAnimation = toggleHoverAnimations.computeIfAbsent(module, ignored -> new Animation(Easing.EASE_OUT_CUBIC, 120L));
-                    hoverAnimation.run(row.getBounds().contains(mouseX, mouseY) ? 1.0f : 0.0f);
+                    boolean rowHovered = row.getBounds().contains(mouseX, mouseY);
+                    hoverAnimation.run(rowHovered ? 1.0f : 0.0f);
                     selectionAnimation.run(state.getSelectedModule() == module ? 1.0f : 0.0f);
                     toggleAnimation.run(module.isEnabled() ? 1.0f : 0.0f);
                     toggleHoverAnimation.run(row.getToggleBounds().contains(mouseX, mouseY) ? 1.0f : 0.0f);
+                    if (rowHovered) {
+                        ModuleTooltip.request(module, mouseX, mouseY);
+                    }
                     boolean marqueeActive = row.hasOverflowingKeybind(textRenderer);
                     contentState.noteAnimation(!hoverAnimation.isFinished()
                             || !selectionAnimation.isFinished()
@@ -142,6 +149,13 @@ public class ModuleListPanel implements AutoCloseable {
         if (rebuildContent) {
             rememberSnapshot(bounds, mouseX, mouseY, modules, GuiGraphicsExtractor.guiHeight(), contentSignature);
         }
+    }
+
+    /**
+     * 输出并清空列表视口缓冲中的内容。
+     */
+    public void flushContent() {
+        contentBuffer.flush();
     }
 
     /**
@@ -202,7 +216,7 @@ public class ModuleListPanel implements AutoCloseable {
             }
             if (row.getToggleBounds().contains(event.x(), event.y())) {
                 row.getModule().module().toggle();
-                Managers.SOUND.playInUi(row.getModule().module().isEnabled() ? SoundKey.SETTINGS_OPEN : SoundKey.SETTINGS_CLOSE);
+                SoundManager.INSTANCE.playInUi(row.getModule().module().isEnabled() ? SoundKey.SETTINGS_OPEN : SoundKey.SETTINGS_CLOSE);
             } else {
                 state.setSelectedModule(row.getModule().module());
             }
@@ -353,7 +367,7 @@ public class ModuleListPanel implements AutoCloseable {
 
     private long buildContentSignature(List<Module> modules) {
         long signature = 17L;
-        signature = signature * 31L + TranslateHolder.INSTANCE.getRevision();
+        signature = signature * 31L + TranslationManager.INSTANCE.getRevision();
         signature = signature * 31L + state.getSelectedCategory().name().hashCode();
         signature = signature * 31L + state.getSearchQuery().hashCode();
         signature = signature * 31L + (searchFocused ? 1 : 0);
@@ -397,21 +411,21 @@ public class ModuleListPanel implements AutoCloseable {
                 : MD3Theme.filledFieldContent(searchFocused);
         scope.pushAbsolute(searchBounds, search ->
                 search.input(searchBounds.atOrigin(), searchFocused, fieldHover,
-                        8.0f, display, scale, EpsilonUiTheme.lumin(textColor),
-                        searchFocused ? searchCursorIndex : null,
-                        searchFocused ? EpsilonUiTheme.lumin(MD3Theme.filledFieldCaret(true)) : null,
+                        8.0f, display, scale, textColor,
+                        searchFocused ? searchCursorIndex : null, searchFocused ? MD3Theme.filledFieldCaret(true) : null,
                         null, 0.0f, null));
 
         if (searchFocused) {
-            float textY = searchBounds.y() + (searchBounds.height() - textRenderer.textHeight(scale, null)) / 2.0f;
+            float textY = searchBounds.y() + (searchBounds.height() - textRenderer.getHeight(scale)) / 2.0f;
             float textX = searchBounds.x() + 8.0f;
-            float caretX = textX + textRenderer.textWidth(query.substring(0, Math.min(searchCursorIndex, query.length())), scale, null);
+            float caretX = textX + textRenderer.getWidth(query.substring(0, Math.min(searchCursorIndex, query.length())), scale);
             IMEFocusHelper.updateCursorPos(caretX, textY);
         }
     }
 
     @Override
     public void close() {
+        contentBuffer.close();
         markDirty();
     }
 }

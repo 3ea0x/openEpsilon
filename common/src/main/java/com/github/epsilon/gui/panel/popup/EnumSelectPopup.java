@@ -1,13 +1,13 @@
 package com.github.epsilon.gui.panel.popup;
 
-import com.github.slmpc.lumingraphics.text.icon.IconChars;
-
-
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiContentBuffer;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
+import com.github.epsilon.assets.i18n.EpsilonTranslations;
+import com.github.epsilon.graphics.text.IconChars;
+import com.github.epsilon.graphics.text.StaticFontLoader;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiContentBuffer;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
+import com.github.epsilon.gui.screen.PlatformNoticeScreen;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
 import com.github.epsilon.settings.impl.EnumSetting;
@@ -31,6 +31,7 @@ public class EnumSelectPopup implements PanelPopupHost.Popup {
     private final float maxScroll;
     private float scroll;
 
+    private final UiContentBuffer contentBuffer = new UiContentBuffer(EpsilonUiTheme.INSTANCE);
     private final Animation openAnimation = new Animation(Easing.EASE_OUT_CUBIC, 140L);
     private int hoveredIndex = -1;
 
@@ -64,8 +65,7 @@ public class EnumSelectPopup implements PanelPopupHost.Popup {
 
     @Override
     public void extractGui(GuiGraphicsExtractor guiGraphics, UiRenderBatch renderBatch, int mouseX, int mouseY, float partialTick) {
-        UiContentBuffer contentBuffer = new UiContentBuffer(renderBatch);
-        var textMetrics = MinecraftUiRuntime2612.current().textMetrics();
+        contentBuffer.clear();
         UiTree popupTree = UiTree.build(scope -> {
             float progress = scope.animate(openAnimation, 1.0f);
             float popupY = bounds.y() - (1.0f - progress) * 6.0f;
@@ -76,12 +76,13 @@ public class EnumSelectPopup implements PanelPopupHost.Popup {
                     bounds.width() - CONTENT_PADDING * 2, viewportHeight);
 
             UiRect popupBounds = new UiRect(bounds.x(), popupY, bounds.width(), bounds.height());
+            MD3Theme.submitGlassBlur(popupBounds.x(), popupBounds.y(), popupBounds.width(), popupBounds.height(), MD3Theme.CARD_RADIUS);
             scope.pushAbsolute(popupBounds, popup -> {
                 popup.popupCard(popupBounds.atOrigin(),
                         MD3Theme.CARD_RADIUS,
                         MD3Theme.POPUP_SHADOW_BLUR,
-                        EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress))),
-                        EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 255)));
+                        MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress)),
+                        MD3Theme.glassPopup(MD3Theme.SURFACE_CONTAINER_LOW));
 
                 hoveredIndex = -1;
                 UiRect localViewportBounds = viewportBounds.relativeTo(popupBounds);
@@ -98,30 +99,49 @@ public class EnumSelectPopup implements PanelPopupHost.Popup {
                             hoveredIndex = i;
                         }
                         boolean selected = i == setting.getModeIndex();
+                        boolean supported = setting.isModeSupportedUnchecked(modes[i]);
                         Color baseBackground = MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_HIGHEST, 0);
                         Color hoverBackground = MD3Theme.lerp(MD3Theme.SURFACE_CONTAINER_HIGH, MD3Theme.SURFACE_CONTAINER_HIGHEST, 0.55f);
                         Color selectedBackground = MD3Theme.SECONDARY_CONTAINER;
                         Color background = selected ? selectedBackground : (hovered ? hoverBackground : baseBackground);
-                        Color textColor = selected ? MD3Theme.ON_SECONDARY_CONTAINER : (hovered ? MD3Theme.withAlpha(MD3Theme.TEXT_PRIMARY, 255) : MD3Theme.TEXT_SECONDARY);
+                        Color textColor = !supported
+                                ? MD3Theme.TEXT_MUTED
+                                : selected ? MD3Theme.ON_SECONDARY_CONTAINER
+                                : (hovered ? MD3Theme.withAlpha(MD3Theme.TEXT_PRIMARY, 255) : MD3Theme.TEXT_SECONDARY);
                         UiRect localItemBounds = new UiRect(0.0f, i * ITEM_HEIGHT, itemAreaWidth, ITEM_INNER_HEIGHT);
                         content.roundRect(localItemBounds.x(), localItemBounds.y(), localItemBounds.width(), localItemBounds.height(), 8.0f, background);
                         float textScale = 0.62f;
-                        float textHeight = textMetrics.textHeight(textScale, null);
+                        float textHeight = contentBuffer.textMetrics().getHeight(textScale);
                         float textY = localItemBounds.y() + (localItemBounds.height() - textHeight) / 2.0f;
                         if (selected) {
                             float iconScale = 0.72f;
-                            var iconFont = "epsilon-icons";
-                            float iconHeight = textMetrics.textHeight(iconScale, iconFont);
+                            float iconHeight = contentBuffer.textMetrics().getHeight(iconScale, StaticFontLoader.ICONS);
                             float iconY = localItemBounds.y() + (localItemBounds.height() - iconHeight) / 2.0f;
                             // TODO: 换个更合适的 icon
-                            content.text(IconChars.KEYBOARD_ARROW_DOWN, localItemBounds.x() + 8.0f, iconY, iconScale, MD3Theme.ON_SECONDARY_CONTAINER, iconFont);
+                            content.text(IconChars.KEYBOARD_ARROW_DOWN, localItemBounds.x() + 8.0f, iconY, iconScale, MD3Theme.ON_SECONDARY_CONTAINER, StaticFontLoader.ICONS);
                         }
                         content.text(setting.getTranslatedValueByIndex(i), localItemBounds.x() + (selected ? 22.0f : 10.0f), textY, textScale, textColor);
+                        if (!supported) {
+                            String badge = EpsilonTranslations.PlatformOnly.BADGE.getTranslatedName();
+                            float badgeScale = 0.52f;
+                            // assist chip 固定 8px 左内边距，左右各留 8px 才能让文字居中。
+                            float badgeWidth = contentBuffer.textMetrics().getWidth(badge, badgeScale) + 16.0f;
+                            float badgeHeight = 12.0f;
+                            float badgeX = localItemBounds.right() - badgeWidth - 8.0f;
+                            float badgeY = localItemBounds.y() + (localItemBounds.height() - badgeHeight) * 0.5f;
+                            content.chip(new UiRect(badgeX, badgeY, badgeWidth, badgeHeight), badge, badgeScale,
+                                    MD3Theme.withAlpha(MD3Theme.TERTIARY_CONTAINER, 255), MD3Theme.ON_TERTIARY_CONTAINER, null, 0.0f, null);
+                        }
                     }
                 });
             });
         });
         renderBatch.render(popupTree);
+    }
+
+    @Override
+    public void flush(UiRenderBatch renderBatch) {
+        contentBuffer.flushAndClear();
     }
 
     @Override
@@ -134,7 +154,12 @@ public class EnumSelectPopup implements PanelPopupHost.Popup {
         if (hoveredIndex < 0 || hoveredIndex >= modes.length) {
             return false;
         }
-        ((EnumSetting) setting).setMode(modes[hoveredIndex]);
+        Enum<?> mode = modes[hoveredIndex];
+        if (!setting.isModeSupportedUnchecked(mode)) {
+            PlatformNoticeScreen.showOption(setting, mode);
+            return true;
+        }
+        ((EnumSetting) setting).setMode(mode);
         return true;
     }
 
@@ -155,6 +180,7 @@ public class EnumSelectPopup implements PanelPopupHost.Popup {
 
     @Override
     public void close() {
+        contentBuffer.close();
     }
 
 }

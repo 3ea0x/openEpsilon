@@ -3,10 +3,10 @@ package com.github.epsilon.gui.dropdown.component;
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
 import com.github.epsilon.gui.dropdown.DropdownTheme;
 import com.github.epsilon.gui.dropdown.widget.DropdownTextField;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.holders.ConfigHolder;
+import com.github.epsilon.managers.ConfigManager;
 import com.github.epsilon.utils.client.ConfigFolderOpener;
 
 import java.util.List;
@@ -32,9 +32,7 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
     @Override
     protected float computeContentHeight() {
         int configCount = configsForFrame().size();
-        return PADDING * 2.0f + FIELD_HEIGHT + GAP + BUTTON_HEIGHT * 3.0f + GAP * 3.0f
-                + Math.max(ROW_HEIGHT, configCount * (ROW_HEIGHT + GAP))
-                + (status.isEmpty() ? 0.0f : ROW_HEIGHT);
+        return PADDING * 2.0f + FIELD_HEIGHT + GAP + BUTTON_HEIGHT * 3.0f + GAP * 3.0f + Math.max(ROW_HEIGHT, configCount * (ROW_HEIGHT + GAP)) + (status.isEmpty() ? 0.0f : ROW_HEIGHT);
     }
 
     @Override
@@ -43,7 +41,7 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
         float contentX = x + PADDING;
         float contentW = width - PADDING * 2.0f;
 
-        String placeholder = ConfigHolder.INSTANCE.getActiveConfigName();
+        String placeholder = ConfigManager.INSTANCE.getActiveConfigName();
         if (!inputField.isFocused() && inputField.getText().isEmpty()) {
             inputField.setText(placeholder);
         }
@@ -61,7 +59,6 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 2; col++) {
                 int index = row * 2 + col;
-                if (index >= actions.length) continue;
                 float btnW = (contentW - GAP) * 0.5f;
                 float btnX = contentX + col * (btnW + GAP);
                 float btnY = currentY + row * (BUTTON_HEIGHT + GAP);
@@ -69,7 +66,7 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
                 scope.roundRect(btnX, btnY, btnW, BUTTON_HEIGHT, DropdownTheme.BUTTON_RADIUS,
                         hovered ? MD3Theme.PRIMARY_CONTAINER : MD3Theme.SURFACE_CONTAINER_HIGH);
                 float labelScale = 0.48f;
-                float labelW = textMetrics.textWidth(actions[index], labelScale, null);
+                float labelW = textMetrics.textWidth(actions[index], labelScale);
                 scope.text(actions[index], btnX + (btnW - labelW) * 0.5f, getCenteredTextY(textMetrics, btnY, BUTTON_HEIGHT, labelScale), labelScale, MD3Theme.TEXT_PRIMARY);
             }
         }
@@ -81,7 +78,7 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
             currentY += ROW_HEIGHT;
         }
 
-        String active = ConfigHolder.INSTANCE.getActiveConfigName();
+        String active = ConfigManager.INSTANCE.getActiveConfigName();
         List<String> configs = configsForFrame();
         if (configs.isEmpty()) {
             float emptyScale = 0.55f;
@@ -91,8 +88,9 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
         for (String name : configs) {
             boolean activeRow = Objects.equals(name, active);
             boolean hovered = isHovered(mouseX, mouseY, contentX, currentY, contentW, ROW_HEIGHT);
+            // 配置列表行与模块按钮同属背景块，跟随 Background Opacity；行内的删除按钮与操作按钮属于控件，保持不透明。
             scope.roundRect(contentX, currentY, contentW, ROW_HEIGHT, DropdownTheme.BUTTON_RADIUS,
-                    activeRow ? MD3Theme.PRIMARY_CONTAINER : (hovered ? MD3Theme.SURFACE_CONTAINER_HIGH : MD3Theme.SURFACE_CONTAINER_LOW));
+                    MD3Theme.applyBackgroundOpacity(activeRow ? MD3Theme.PRIMARY_CONTAINER : (hovered ? MD3Theme.SURFACE_CONTAINER_HIGH : MD3Theme.SURFACE_CONTAINER_LOW)));
             float nameScale = 0.56f;
             scope.text(trimToWidth(name, nameScale, contentW - 28.0f, textMetrics), contentX + 6.0f, getCenteredTextY(textMetrics, currentY, ROW_HEIGHT, nameScale), nameScale,
                     activeRow ? MD3Theme.ON_PRIMARY_CONTAINER : MD3Theme.TEXT_PRIMARY);
@@ -119,7 +117,6 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 2; col++) {
                 int index = row * 2 + col;
-                if (index >= 6) continue;
                 float btnW = (contentW - GAP) * 0.5f;
                 float btnX = contentX + col * (btnW + GAP);
                 float btnY = currentY + row * (BUTTON_HEIGHT + GAP);
@@ -136,7 +133,7 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
             float deleteX = contentX + contentW - 18.0f;
             if (isHovered(mouseX, mouseY, deleteX, currentY + 3.0f, 16.0f, 16.0f)) {
                 try {
-                    ConfigHolder.INSTANCE.deleteConfig(name);
+                    ConfigManager.INSTANCE.deleteConfig(name);
                     status = EpsilonTranslations.Gui.DROPDOWN_STATUS_DELETED.getTranslatedName() + " " + name;
                 } catch (Exception e) {
                     status = errorText(e);
@@ -145,7 +142,7 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
             }
             if (isHovered(mouseX, mouseY, contentX, currentY, contentW, ROW_HEIGHT)) {
                 try {
-                    ConfigHolder.INSTANCE.switchConfig(name);
+                    ConfigManager.INSTANCE.switchConfig(name);
                     inputField.setText(name);
                     inputField.setCursorToEnd();
                     status = EpsilonTranslations.Gui.DROPDOWN_STATUS_SWITCHED.getTranslatedName() + " " + name;
@@ -159,28 +156,39 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
         return false;
     }
 
+    @Override
+    public void onGlobalMouseClicked(double mouseX, double mouseY, int button) {
+        if (button != 0) return;
+        float fieldX = x + PADDING;
+        float fieldY = y + DropdownTheme.PANEL_HEADER_HEIGHT + PADDING - scroll;
+        float fieldW = width - PADDING * 2.0f;
+        if (!isHovered(mouseX, mouseY, fieldX, fieldY, fieldW, FIELD_HEIGHT)) {
+            inputField.blur();
+        }
+    }
+
     private void runAction(int index) {
         String value = inputField.getText().trim();
         try {
             switch (index) {
                 case 0 -> {
                     if (!value.isEmpty()) {
-                        String saved = ConfigHolder.INSTANCE.saveAsConfig(value);
+                        String saved = ConfigManager.INSTANCE.saveAsConfig(value);
                         inputField.setText(saved);
                         inputField.setCursorToEnd();
                         status = EpsilonTranslations.Gui.DROPDOWN_STATUS_SAVED.getTranslatedName() + " " + saved;
                     }
                 }
                 case 1 -> {
-                    ConfigHolder.INSTANCE.reloadOrThrow();
+                    ConfigManager.INSTANCE.reloadOrThrow();
                     status = EpsilonTranslations.Gui.DROPDOWN_STATUS_RELOADED.getTranslatedName();
                 }
                 case 2 -> {
-                    status = EpsilonTranslations.Gui.DROPDOWN_STATUS_EXPORTED.getTranslatedName() + " " + ConfigHolder.INSTANCE.exportActiveConfigToZip(value).getFileName();
+                    status = EpsilonTranslations.Gui.DROPDOWN_STATUS_EXPORTED.getTranslatedName() + " " + ConfigManager.INSTANCE.exportActiveConfigToZip(value).getFileName();
                 }
                 case 3 -> {
                     if (!value.isEmpty()) {
-                        String imported = ConfigHolder.INSTANCE.importConfigFromZip(value);
+                        String imported = ConfigManager.INSTANCE.importConfigFromZip(value);
                         inputField.setText(imported);
                         inputField.setCursorToEnd();
                         status = EpsilonTranslations.Gui.DROPDOWN_STATUS_IMPORTED.getTranslatedName() + " " + imported;
@@ -188,7 +196,7 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
                 }
                 case 4 -> {
                     if (!value.isEmpty()) {
-                        String created = ConfigHolder.INSTANCE.newDefaultConfig(value);
+                        String created = ConfigManager.INSTANCE.newDefaultConfig(value);
                         inputField.setText(created);
                         inputField.setCursorToEnd();
                         status = EpsilonTranslations.Gui.DROPDOWN_STATUS_CREATED.getTranslatedName() + " " + created;
@@ -230,13 +238,13 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
     }
 
     private float getCenteredTextY(UiTextMetrics textMetrics, float boxY, float boxH, float scale) {
-        return boxY + (boxH - textMetrics.textHeight(scale, null)) / 2.0f;
+        return boxY + (boxH - textMetrics.textHeight(scale)) / 2.0f;
     }
 
     private List<String> configsForFrame() {
         int frameId = getRenderFrameId();
         if (cachedConfigFrameId != frameId) {
-            cachedConfigs = ConfigHolder.INSTANCE.listConfigs();
+            cachedConfigs = ConfigManager.INSTANCE.listConfigs();
             cachedConfigFrameId = frameId;
         }
         return cachedConfigs;

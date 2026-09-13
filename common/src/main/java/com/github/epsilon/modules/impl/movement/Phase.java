@@ -2,7 +2,7 @@ package com.github.epsilon.modules.impl.movement;
 
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.impl.BlockCollisionEvent;
-import com.github.epsilon.events.impl.DestroyBlockEvent;
+import com.github.epsilon.events.impl.DestroyedBlockEvent;
 import com.github.epsilon.events.impl.PlayerTickEvent;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
@@ -28,6 +28,7 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 public class Phase extends Module {
 
@@ -116,7 +117,7 @@ public class Phase extends Module {
     }
 
     @EventHandler
-    private void onDestroyBlock(DestroyBlockEvent event) {
+    private void onDestroyedBlock(DestroyedBlockEvent event) {
         clipTimer = afterBreak.getValue();
     }
 
@@ -165,7 +166,7 @@ public class Phase extends Module {
             }
 
             if (blockToBreak == null) return;
-            int bestTool = AutoTool.INSTANCE.getTool(blockToBreak);
+            int bestTool = AutoTool.INSTANCE.getBestTool(blockToBreak);
             if (bestTool == -1) return;
 
             InvUtils.swap(bestTool, true);
@@ -203,7 +204,7 @@ public class Phase extends Module {
                     return;
                 }
 
-                Rot2f angle = RotationUtils.calculate(block.getCenter());
+                Rot2f angle = RotationUtils.calculate(Vec3.atCenterOf(block));
                 FindItemResult result = swapMode.is(SwapMode.Silent) ? InvUtils.findInHotbar(Items.ENDER_PEARL) : InvUtils.find(Items.ENDER_PEARL);
                 if (result.found()) {
                     float prevYaw = mc.player.getYRot();

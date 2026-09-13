@@ -1,12 +1,10 @@
 package com.github.epsilon.gui.panel.component.setting;
 
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.gui.panel.component.SettingRow;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
@@ -23,7 +21,7 @@ public class IntSettingRow extends SettingRow<IntSetting> {
     private final Animation hoverAnimation = new Animation(Easing.EASE_OUT_QUART, 150L);
     private final Animation pressAnimation = new Animation(Easing.EASE_OUT_CUBIC, 120L);
     private final Animation indicatorAnimation = new Animation(Easing.EASE_OUT_QUART, 150L);
-    private UiTextMetrics textMetrics;
+    private TextRenderer textMetrics;
     private boolean dragging;
     private boolean focused;
     private String inputBuffer;
@@ -38,10 +36,10 @@ public class IntSettingRow extends SettingRow<IntSetting> {
     }
 
     @Override
-    public void buildUi(UiTree.Scope scope, GuiGraphicsExtractor guiGraphics, UiTextMetrics textRenderer, UiRect bounds, float hoverProgress, int mouseX, int mouseY, float partialTick) {
+    public void buildUi(UiTree.Scope scope, GuiGraphicsExtractor guiGraphics, TextRenderer textRenderer, UiRect bounds, float hoverProgress, int mouseX, int mouseY, float partialTick) {
         this.textMetrics = textRenderer;
         float labelScale = 0.68f;
-        float labelY = (bounds.height() - textRenderer.textHeight(labelScale, null)) / 2.0f;
+        float labelY = (bounds.height() - textRenderer.getHeight(labelScale)) / 2.0f;
         hoverAnimation.run(dragging ? 1.0f : hoverProgress);
         pressAnimation.run(dragging ? 1.0f : 0.0f);
         indicatorAnimation.run((dragging || hoverProgress > 0.01f) ? 1.0f : 0.0f);
@@ -63,22 +61,22 @@ public class IntSettingRow extends SettingRow<IntSetting> {
         float handleGap = 2.5f;
 
         scope.slider(trackBounds.relativeTo(bounds), visualProgress, 3.0f,
-                EpsilonUiTheme.lumin(MD3Theme.SECONDARY_CONTAINER),
-                handleGap, 2.0f, EpsilonUiTheme.lumin(MD3Theme.PRIMARY),
-                handleWidth, handleHeight, 1.0f, EpsilonUiTheme.lumin(MD3Theme.PRIMARY));
+                MD3Theme.SECONDARY_CONTAINER,
+                handleGap, 2.0f, MD3Theme.PRIMARY,
+                handleWidth, handleHeight, 1.0f, MD3Theme.PRIMARY);
 
         if (indicatorProgress > 0.01f) {
             String label = formatValue();
             float textScale = 0.62f;
-            float bubbleWidth = textRenderer.textWidth(label, textScale, null) + 16.0f;
+            float bubbleWidth = textRenderer.getWidth(label, textScale) + 16.0f;
             float bubbleHeight = 18.0f;
             float bubbleX = handleX + handleWidth / 2.0f - bubbleWidth / 2.0f;
             float bubbleY = bounds.y() - 22.0f;
             int bubbleAlpha = (int) (255 * indicatorProgress);
             scope.pushAbsolute(new UiRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight), bubble -> {
                 bubble.roundRect(0.0f, 0.0f, bubbleWidth, bubbleHeight, 9.0f, MD3Theme.withAlpha(MD3Theme.INVERSE_SURFACE, bubbleAlpha));
-                float textWidth = textRenderer.textWidth(label, textScale, null);
-                float textHeight = textRenderer.textHeight(textScale, null);
+                float textWidth = textRenderer.getWidth(label, textScale);
+                float textHeight = textRenderer.getHeight(textScale);
                 float textX = (bubbleWidth - textWidth) / 2.0f;
                 float textY = (bubbleHeight - textHeight) / 2.0f;
                 bubble.text(label, textX, textY, textScale, MD3Theme.withAlpha(MD3Theme.INVERSE_ON_SURFACE, bubbleAlpha));
@@ -88,12 +86,11 @@ public class IntSettingRow extends SettingRow<IntSetting> {
         float fieldHover = animatedHover * 0.85f;
         String display = focused ? getDisplayBuffer() : formatValue();
         float displayScale = getFieldTextScale(textRenderer, display, fieldBounds);
-        float textWidth = textRenderer.textWidth(display, displayScale, null);
+        float textWidth = textRenderer.getWidth(display, displayScale);
         float textX = fieldBounds.x() + (fieldBounds.width() - textWidth) / 2.0f;
         scope.input(fieldBounds.relativeTo(bounds), focused, fieldHover,
-                textX - fieldBounds.x(), display, displayScale, EpsilonUiTheme.lumin(MD3Theme.filledFieldContent(focused)),
-                focused ? Math.min(cursorIndex, display.length()) : null,
-                focused ? EpsilonUiTheme.lumin(MD3Theme.filledFieldCaret(focused)) : null,
+                textX - fieldBounds.x(), display, displayScale, MD3Theme.filledFieldContent(focused),
+                focused ? Math.min(cursorIndex, display.length()) : null, focused ? MD3Theme.filledFieldCaret(focused) : null,
                 null, 0.0f, null);
     }
 
@@ -294,12 +291,12 @@ public class IntSettingRow extends SettingRow<IntSetting> {
 
     private int getCursorIndex(double mouseX, UiRect fieldBounds) {
         String text = getDisplayBuffer();
-        UiTextMetrics metrics = textMetrics();
+        TextRenderer metrics = textMetrics();
         float scale = getFieldTextScale(metrics, text, fieldBounds);
-        float textWidth = metrics.textWidth(text, scale, null);
+        float textWidth = metrics.getWidth(text, scale);
         float textStart = fieldBounds.x() + (fieldBounds.width() - textWidth) / 2.0f;
         for (int i = 0; i <= text.length(); i++) {
-            float width = metrics.textWidth(text.substring(0, i), scale, null);
+            float width = metrics.getWidth(text.substring(0, i), scale);
             if (mouseX <= textStart + width) {
                 return i;
             }
@@ -307,8 +304,8 @@ public class IntSettingRow extends SettingRow<IntSetting> {
         return text.length();
     }
 
-    private float getFieldTextScale(UiTextMetrics textRenderer, String text, UiRect fieldBounds) {
-        float textWidth = textRenderer.textWidth(text, FIELD_TEXT_SCALE, null);
+    private float getFieldTextScale(TextRenderer textRenderer, String text, UiRect fieldBounds) {
+        float textWidth = textRenderer.getWidth(text, FIELD_TEXT_SCALE);
         float maxTextWidth = Math.max(1.0f, fieldBounds.width() - FIELD_TEXT_PADDING * 2.0f);
         if (textWidth <= maxTextWidth || textWidth <= 0.0f) {
             return FIELD_TEXT_SCALE;
@@ -316,8 +313,8 @@ public class IntSettingRow extends SettingRow<IntSetting> {
         return FIELD_TEXT_SCALE * maxTextWidth / textWidth;
     }
 
-    private UiTextMetrics textMetrics() {
-        return textMetrics == null ? MinecraftUiRuntime2612.current().textMetrics() : textMetrics;
+    private TextRenderer textMetrics() {
+        return textMetrics == null ? FALLBACK_TEXT_METRICS : textMetrics;
     }
 
 }

@@ -8,7 +8,7 @@ import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
-import com.github.epsilon.utils.network.PacketUtils;
+import com.github.epsilon.utils.network.NetworkUtils;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.client.gui.screens.RecoverWorldDataScreen;
 import net.minecraft.client.player.RemotePlayer;
@@ -111,7 +111,7 @@ public class Blink extends Module {
     private void releaseTick() {
         while (!this.packets.isEmpty()) {
             Packet<?> poll = this.packets.poll();
-            PacketUtils.sendSilently(poll);
+            NetworkUtils.sendPacketNoEvent(poll);
             if (poll instanceof ServerboundMovePlayerPacket) {
                 handlePlayerMove((ServerboundMovePlayerPacket) poll);
                 break;
@@ -122,7 +122,7 @@ public class Blink extends Module {
     private void releaseAll() {
         if (!packets.isEmpty()) {
             for (Packet packet : packets) {
-                PacketUtils.sendSilently(packet);
+                NetworkUtils.sendPacketNoEvent(packet);
                 if (packet instanceof ServerboundMovePlayerPacket serverboundMovePlayerPacket) {
                     handlePlayerMove(serverboundMovePlayerPacket);
                 }
@@ -159,7 +159,7 @@ public class Blink extends Module {
 
     @EventHandler
     public void onMotion(SendPositionEvent event) {
-        if (mc.screen instanceof RecoverWorldDataScreen && this.isEnabled()) {
+        if (mc.gui.screen() instanceof RecoverWorldDataScreen && this.isEnabled()) {
             this.setEnabled(false);
         }
         if (nullCheck()) return;

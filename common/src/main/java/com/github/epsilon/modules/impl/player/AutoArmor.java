@@ -75,12 +75,12 @@ public class AutoArmor extends Module {
         if (nullCheck()) return;
 
         if (
-                mc.screen != null
+                mc.gui.screen() != null
                         && pauseInventory.getValue()
-                        && !(mc.screen instanceof ChatScreen)
-                        && !(mc.screen instanceof PanelScreen)
-                        && !(mc.screen instanceof DropdownScreen)
-                        && !(mc.screen instanceof HudEditorScreen)
+                        && !(mc.gui.screen() instanceof ChatScreen)
+                        && !(mc.gui.screen() instanceof PanelScreen)
+                        && !(mc.gui.screen() instanceof DropdownScreen)
+                        && !(mc.gui.screen() instanceof HudEditorScreen)
         ) {
             return;
         }
@@ -214,9 +214,9 @@ public class AutoArmor extends Module {
         double[] armor = {0.0};
         double[] toughness = {0.0};
         stack.forEachModifier(slot, (attribute, modifier) -> {
-            if (attribute.equals(Attributes.ARMOR)) {
+            if (attribute == Attributes.ARMOR) {
                 armor[0] += modifier.amount();
-            } else if (attribute.equals(Attributes.ARMOR_TOUGHNESS)) {
+            } else if (attribute == Attributes.ARMOR_TOUGHNESS) {
                 toughness[0] += modifier.amount();
             }
         });

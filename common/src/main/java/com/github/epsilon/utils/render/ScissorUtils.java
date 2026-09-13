@@ -14,9 +14,9 @@ public class ScissorUtils {
     /**
      * 将 GUI 坐标矩形转换为帧缓冲裁剪矩形。
      *
-     * @param x X 坐标
-     * @param y Y 坐标
-     * @param width 宽度
+     * @param x      X 坐标
+     * @param y      Y 坐标
+     * @param width  宽度
      * @param height 高度
      * @return 操作结果
      */
@@ -33,10 +33,10 @@ public class ScissorUtils {
     /**
      * 将 GUI 坐标矩形转换为帧缓冲裁剪矩形。
      *
-     * @param x X 坐标
-     * @param y Y 坐标
-     * @param width 宽度
-     * @param height 高度
+     * @param x         X 坐标
+     * @param y         Y 坐标
+     * @param width     宽度
+     * @param height    高度
      * @param guiHeight GUI 坐标系高度
      * @return 操作结果
      */
@@ -52,11 +52,11 @@ public class ScissorUtils {
     /**
      * 将 GUI 坐标矩形转换为帧缓冲裁剪矩形。
      *
-     * @param x X 坐标
-     * @param y Y 坐标
-     * @param width 宽度
-     * @param height 高度
-     * @param scale 缩放值或 GUI 到帧缓冲的比例
+     * @param x                 X 坐标
+     * @param y                 Y 坐标
+     * @param width             宽度
+     * @param height            高度
+     * @param scale             缩放值或 GUI 到帧缓冲的比例
      * @param framebufferHeight 帧缓冲高度
      * @return 操作结果
      */
@@ -71,9 +71,9 @@ public class ScissorUtils {
     /**
      * 将裁剪矩形限制在当前帧缓冲范围内。
      *
-     * @param x X 坐标
-     * @param y Y 坐标
-     * @param width 宽度
+     * @param x      X 坐标
+     * @param y      Y 坐标
+     * @param width  宽度
      * @param height 高度
      * @return 操作结果
      */
@@ -100,7 +100,7 @@ public class ScissorUtils {
     /**
      * 判断裁剪区域是否具有可见面积。
      *
-     * @param width 宽度
+     * @param width  宽度
      * @param height 高度
      * @return 判断结果
      */
@@ -111,10 +111,10 @@ public class ScissorUtils {
     /**
      * 在渲染通道中启用非空裁剪区域。
      *
-     * @param pass 渲染通道
-     * @param x X 坐标
-     * @param y Y 坐标
-     * @param width 宽度
+     * @param pass   渲染通道
+     * @param x      X 坐标
+     * @param y      Y 坐标
+     * @param width  宽度
      * @param height 高度
      * @return 判断结果
      */
@@ -130,7 +130,7 @@ public class ScissorUtils {
     /**
      * 在渲染通道中启用非空裁剪区域。
      *
-     * @param pass 渲染通道
+     * @param pass    渲染通道
      * @param scissor 帧缓冲裁剪矩形
      * @return 判断结果
      */
@@ -144,7 +144,7 @@ public class ScissorUtils {
             return activeTarget.width();
         }
 
-        WindowRenderState windowState = mc.gameRenderer.getGameRenderState().windowRenderState;
+        WindowRenderState windowState = mc.gameRenderer.gameRenderState().windowRenderState;
         return windowState.width;
     }
 
@@ -154,7 +154,8 @@ public class ScissorUtils {
             return activeTarget.height();
         }
 
-        WindowRenderState windowState = mc.gameRenderer.getGameRenderState().windowRenderState;
+        WindowRenderState windowState = mc.gameRenderer.gameRenderState().windowRenderState;
         return windowState.height;
     }
+
 }

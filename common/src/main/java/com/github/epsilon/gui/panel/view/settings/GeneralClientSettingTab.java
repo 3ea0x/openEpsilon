@@ -1,11 +1,11 @@
 package com.github.epsilon.gui.panel.view.settings;
 
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiContentBuffer;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
-import com.github.slmpc.lumingraphics.ui.state.UiInvalidationState;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiContentBuffer;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
+import com.github.epsilon.gui.lib.state.UiInvalidationState;
 import com.github.epsilon.gui.panel.PanelState;
 import com.github.epsilon.gui.panel.adapter.SettingListController;
 import com.github.epsilon.gui.panel.component.setting.KeybindSettingRow;
@@ -13,7 +13,7 @@ import com.github.epsilon.gui.panel.popup.PanelPopupHost;
 import com.github.epsilon.gui.panel.utils.ScrollBarDragState;
 import com.github.epsilon.gui.panel.utils.ScrollBarUtils;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
-import com.github.epsilon.holders.TranslateHolder;
+import com.github.epsilon.managers.TranslationManager;
 import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.Setting;
 import com.github.epsilon.settings.SettingLayoutPlanner;
@@ -35,8 +35,9 @@ public class GeneralClientSettingTab implements ClientSettingTabView {
     private static final String SETTING_OWNER_KEY = "client-settings:panel-general";
 
     private final PanelState state;
-    private final UiTextMetrics textRenderer;
+    private final TextRenderer textRenderer;
     private final SettingListController settingListController;
+    private final UiContentBuffer contentBuffer = new UiContentBuffer(EpsilonUiTheme.INSTANCE);
     private final UiInvalidationState contentState = new UiInvalidationState();
     private final Map<Setting<?>, Animation> hoverAnimations = new HashMap<>();
     private final ScrollBarDragState scrollBarDrag = new ScrollBarDragState();
@@ -48,7 +49,7 @@ public class GeneralClientSettingTab implements ClientSettingTabView {
     private long lastContentSignature = Long.MIN_VALUE;
     private float scrollVelocity = 0;
 
-    public GeneralClientSettingTab(PanelState state, UiTextMetrics textRenderer, PanelPopupHost popupHost) {
+    public GeneralClientSettingTab(PanelState state, TextRenderer textRenderer, PanelPopupHost popupHost) {
         this.state = state;
         this.textRenderer = textRenderer;
         this.settingListController = new SettingListController(popupHost);
@@ -56,7 +57,6 @@ public class GeneralClientSettingTab implements ClientSettingTabView {
 
     @Override
     public void render(GuiGraphicsExtractor guiGraphics, UiRenderBatch renderBatch, UiRect bounds, int mouseX, int mouseY, float partialTick) {
-        UiContentBuffer contentBuffer = new UiContentBuffer(renderBatch);
         this.bounds = bounds;
 
         if (Math.abs(scrollVelocity) > 0.01f) {
@@ -80,9 +80,10 @@ public class GeneralClientSettingTab implements ClientSettingTabView {
         boolean popupConsumesHover = settingListController.isPopupHovered(mouseX, mouseY);
         int effectiveMouseX = popupConsumesHover ? Integer.MIN_VALUE : mouseX;
         int effectiveMouseY = popupConsumesHover ? Integer.MIN_VALUE : mouseY;
-        boolean rebuildContent = true;
+        boolean rebuildContent = shouldRebuildContent(bounds, mouseX, mouseY, settings, guiGraphics.guiHeight(), contentSignature);
 
         if (rebuildContent) {
+            contentBuffer.clear();
             contentState.beginRebuild();
         }
 
@@ -114,6 +115,11 @@ public class GeneralClientSettingTab implements ClientSettingTabView {
         if (rebuildContent) {
             rememberSnapshot(bounds, mouseX, mouseY, settings, guiGraphics.guiHeight(), contentSignature);
         }
+    }
+
+    @Override
+    public void flushContent() {
+        contentBuffer.flush();
     }
 
     @Override
@@ -282,7 +288,7 @@ public class GeneralClientSettingTab implements ClientSettingTabView {
 
     private long buildContentSignature(List<Setting<?>> settings) {
         long signature = 17L;
-        signature = signature * 31L + TranslateHolder.INSTANCE.getRevision();
+        signature = signature * 31L + TranslationManager.INSTANCE.getRevision();
         signature = signature * 31L + Float.floatToIntBits(state.getClientSettingScroll());
         signature = signature * 31L + (state.getListeningKeybindSetting() == null ? 0 : state.getListeningKeybindSetting().getName().hashCode());
         for (Setting<?> setting : settings) {
@@ -296,6 +302,7 @@ public class GeneralClientSettingTab implements ClientSettingTabView {
     @Override
     public void close() {
         settingListController.close();
+        contentBuffer.close();
         markDirty();
     }
 

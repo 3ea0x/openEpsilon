@@ -1,5 +1,7 @@
 package com.github.epsilon.gui.theme;
 
+import com.github.epsilon.graphics.shaders.BlurShader;
+import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.modules.impl.ClientSetting;
 import net.minecraft.util.Mth;
 
@@ -124,6 +126,151 @@ public class MD3Theme {
         return new Color(color.getRed(), color.getGreen(), color.getBlue(), clampedAlpha);
     }
 
+    // ---------- 液态玻璃材质 ----------
+    // 玻璃表面在绘制前先对同一区域执行实时背景模糊（submitGlassBlur），再叠上玻璃着色与边缘高光。
+    // 由 Client Setting 的 “Liquid Glass” 开关独立控制，与 Theme Mode / Theme Preset 互不绑定。
+    public static final float GLASS_BLUR_STRENGTH = 12.0f;
+
+    private static final int GLASS_PANE_ALPHA_DARK = 138;
+    private static final int GLASS_PANE_ALPHA_LIGHT = 162;
+    private static final int GLASS_SECTION_ALPHA_DARK = 120;
+    private static final int GLASS_SECTION_ALPHA_LIGHT = 148;
+    private static final int GLASS_POPUP_ALPHA_DARK = 168;
+    private static final int GLASS_POPUP_ALPHA_LIGHT = 180;
+    private static final int GLASS_ROW_ALPHA_DARK = 118;
+    private static final int GLASS_ROW_ALPHA_LIGHT = 146;
+    private static final float GLASS_LIGHT_BLEND = 0.35f;
+    private static final float GLASS_DARK_LIFT = 0.10f;
+
+    /** 液态玻璃是否启用：独立开关，不影响 Theme Mode / Theme Preset 配色。 */
+    public static boolean isGlassEnabled() {
+        return ClientSetting.INSTANCE.themeGlass.getValue();
+    }
+
+    /** 液态玻璃整体不透明度倍率（0.0~1.0），来自 Client Setting 的 Glass Opacity；缺省为 1.0，即保持各玻璃表面的原始 alpha。 */
+    public static float glassOpacity() {
+        Double value = ClientSetting.INSTANCE.themeGlassOpacity.getValue();
+        return value == null ? 1.0f : Mth.clamp(value.floatValue(), 0.0f, 1.0f);
+    }
+
+    /**
+     * 按 Glass Opacity 缩放 alpha。
+     * <p>
+     * 只用于「因为启用玻璃而降低不透明度」的颜色，例如玻璃表面、玻璃行的高亮叠加和玻璃边缘高光；
+     * 普通不透明表面（如关闭玻璃后的 {@link #glassPopup}）不得经过本方法。
+     */
+    public static int glassAlpha(int alpha) {
+        return Mth.clamp(Math.round(alpha * glassOpacity()), 0, 255);
+    }
+
+    // ---------- GUI 窗口背景 ----------
+    // 与玻璃材质正交的第二个倍率：玻璃决定“背景是什么材质”，本倍率决定“背景有多不透明”。
+    // 因此它不依赖 Liquid Glass 开关，关闭玻璃后仍可调节；两者相乘只影响窗口背景层。
+
+    /** GUI 窗口背景整体不透明度倍率（0.0~1.0），来自 Client Setting 的 Background Opacity；缺省为 1.0。 */
+    public static float backgroundOpacity() {
+        Double value = ClientSetting.INSTANCE.guiBackgroundOpacity.getValue();
+        return value == null ? 1.0f : Mth.clamp(value.floatValue(), 0.0f, 1.0f);
+    }
+
+    /**
+     * 按 GUI 背景不透明度缩放 alpha。
+     * <p>
+     * 只用于窗口背景层，即 Panel 模式的主面板与分区卡片、Dropdown 模式的每个面板；
+     * 面板之上的内容层（行、分组卡片、文本、控件、弹窗）不得经过本方法，否则会连带削弱可读性。
+     */
+    public static int backgroundAlpha(int alpha) {
+        return Mth.clamp(Math.round(alpha * backgroundOpacity()), 0, 255);
+    }
+
+    /**
+     * 对已经算好的窗口背景表面按 Background Opacity 缩放 alpha。
+     * <p>
+     * 调用方负责先决定材质（{@link #glassPane} / {@link #glassSection}），本方法只压缩不透明度，
+     * 这样关闭玻璃时被原样返回的不透明表面同样能被调透明。
+     */
+    public static Color applyBackgroundOpacity(Color surface) {
+        return withAlpha(surface, backgroundAlpha(surface.getAlpha()));
+    }
+
+    /** 玻璃着色：保留主题色相，按当前 Theme Mode 降低不透明度，再按 Glass Opacity 统一缩放；Light 模式向白色微调提亮，Dark 模式轻微提亮避免发闷。 */
+    public static Color glassTint(Color base, int darkAlpha, int lightAlpha) {
+        if (!isGlassEnabled()) {
+            return base;
+        }
+        int alpha = isLightTheme() ? lightAlpha : darkAlpha;
+        Color tinted = isLightTheme()
+                ? lerp(base, Color.WHITE, GLASS_LIGHT_BLEND)
+                : lerp(base, Color.WHITE, GLASS_DARK_LIFT);
+        return withAlpha(tinted, glassAlpha(alpha));
+    }
+
+    public static Color glassPane(Color base) {
+        return glassTint(base, GLASS_PANE_ALPHA_DARK, GLASS_PANE_ALPHA_LIGHT);
+    }
+
+    public static Color glassSection(Color base) {
+        return glassTint(base, GLASS_SECTION_ALPHA_DARK, GLASS_SECTION_ALPHA_LIGHT);
+    }
+
+    public static Color glassPopup(Color base) {
+        if (!isGlassEnabled()) {
+            // 弹窗原本强制全不透明表面，关闭玻璃后保持原样
+            return withAlpha(base, 255);
+        }
+        return glassTint(base, GLASS_POPUP_ALPHA_DARK, GLASS_POPUP_ALPHA_LIGHT);
+    }
+
+    public static Color glassRow(Color base) {
+        return glassTint(base, GLASS_ROW_ALPHA_DARK, GLASS_ROW_ALPHA_LIGHT);
+    }
+
+    /**
+     * 对圆角区域执行实时背景模糊。
+     * <p>
+     * {@link BlurShader} 会立即把当前帧目标（面板/下拉菜单的离屏 target 优先，否则主 target）的颜色拷入临时纹理并模糊后回写，
+     * 因此必须在同一帧中先调用本方法、再记录玻璃表面的绘制命令，否则模糊会覆盖已经画好的 UI。
+     */
+    public static void submitGlassBlur(float x, float y, float width, float height, float radius) {
+        if (!isGlassEnabled() || width <= 0.0f || height <= 0.0f) {
+            return;
+        }
+        // 这一层模糊就是面板“背景”本身：它写入的是一块 alpha≈1 的模糊斑，不随玻璃或背景设置变化。
+        // 因此必须把 Background Opacity 传给它，否则把背景调透明后仍会残留不透明模糊斑
+        // （表现为背景发黑、发虚），Glass Opacity 也压不住它。完全透明时直接跳过，省掉一次全屏模糊。
+        float opacity = backgroundOpacity();
+        if (opacity <= 0.0f) {
+            return;
+        }
+        BlurShader.INSTANCE.render(x, y, width, height, radius, GLASS_BLUR_STRENGTH, opacity);
+    }
+
+    /**
+     * 面板装饰（玻璃边缘描边与顶部高光）的 alpha：同时受 Glass Opacity 与 Background Opacity 控制。
+     * <p>
+     * 它们与面板背景同属一块表面，背景调透明时必须一起消失，否则会留下悬空的边框和一条白色高光线。
+     */
+    private static int glassRimAlpha(int alpha) {
+        return glassAlpha(backgroundAlpha(alpha));
+    }
+
+    /** 玻璃边缘：一圈细描边 + 顶部受光的高光线；随 Glass Opacity 与 Background Opacity 一起缩放。 */
+    public static void glassRim(UiTree.Scope scope, float x, float y, float width, float height, float radius) {
+        if (!isGlassEnabled() || scope == null || width <= 0.0f || height <= 0.0f) {
+            return;
+        }
+        boolean light = isLightTheme();
+        Color edge = light ? withAlpha(OUTLINE, glassRimAlpha(110)) : withAlpha(Color.WHITE, glassRimAlpha(32));
+        int glintAlpha = glassRimAlpha(light ? 96 : 120);
+        if (edge.getAlpha() <= 0 && glintAlpha <= 0) {
+            return;
+        }
+        scope.outline(x, y, width, height, radius, 1.0f, edge);
+        float inset = Math.min(Math.max(radius * 0.55f, 3.0f), 12.0f);
+        Color glint = withAlpha(Color.WHITE, glintAlpha);
+        scope.rect(x + inset, y + 1.1f, width - inset * 2.0f, 1.1f, glint);
+    }
+
     public static Color lerp(Color start, Color end, float delta) {
         float t = Mth.clamp(delta, 0.0f, 1.0f);
         int r = (int) (start.getRed() + (end.getRed() - start.getRed()) * t);
@@ -141,8 +288,22 @@ public class MD3Theme {
         return withAlpha(color, (int) (Mth.clamp(progress, 0.0f, 1.0f) * Mth.clamp(maxAlpha, 0, 255)));
     }
 
+    /**
+     * 行/卡片背景：Panel 模式的模块行与全部 Setting 行、下拉模式的列表项都走这里。
+     * <p>
+     * 它和面板背景一样属于「背景块」，因此最后统一按 Background Opacity 缩放；
+     * 关闭玻璃的分支原本返回不透明表面，也必须缩放，否则调低背景透明度时这些大块仍然不透明。
+     */
     public static Color rowSurface(float hoverProgress) {
-        return lerp(SURFACE_CONTAINER, SURFACE_CONTAINER_HIGH, hoverProgress);
+        Color surface;
+        if (!isGlassEnabled()) {
+            surface = lerp(SURFACE_CONTAINER, SURFACE_CONTAINER_HIGH, hoverProgress);
+        } else {
+            Color glass = glassRow(SURFACE_CONTAINER);
+            Color hovered = withAlpha(SURFACE_CONTAINER_HIGHEST, glassAlpha(isLightTheme() ? 236 : 226));
+            surface = lerp(glass, hovered, hoverProgress);
+        }
+        return applyBackgroundOpacity(surface);
     }
 
     public static Color filledFieldSurface(boolean focused, float hoverProgress) {

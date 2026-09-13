@@ -1,91 +1,136 @@
 # 渲染
 
-## Lumin 2D 资源与帧
+## Lumin Graphics 概览
 
-LuminGraphics-MC 的 `MinecraftUiRuntime2612` 在渲染线程拥有 2D 帧资源：字体、glyph atlas、Minecraft
-纹理与 render target、native extraction bridge、资源重载失效处理，以及帧内 UI 资源的创建和释放。
-这些资源只在 runtime 的活动帧中使用；借入的 Minecraft image、view 和 native handle 不由 Epsilon 关闭。
+Lumin Graphics 是 Epsilon 自有的渲染框架，源码位于 `common/src/main/java/com/github/epsilon/graphics/`：
 
-Epsilon 业务代码直接构造公共 Lumin `UiTree` 与 `UiScene`（`com.github.slmpc.lumingraphics.ui.*`），
-不再提供 Epsilon 自有的 2D renderer、text renderer、scheduler 或 post-process wrapper。一个 Screen 或
-HUD 帧共享一个 `UiScene`，在 `beginFrame()` 与 `endFrame()` 之间提交 UI layer、控件、scissor 和 popup
-层级；主题通过 Epsilon 的业务适配层转换为公共 Lumin 类型。
+```text
+graphics/
+├── renderers/   Rect、RoundRect、RoundRectOutline、Shadow、Triangle、Arc、Texture、Text
+├── schedulers/  render2d（命令、layer、scissor、纹理）、render3d（3D 命令收集）
+├── shaders/     Blur、FXAA、Filter、MotionBlur、CustomSky、GlslSandBox
+├── text/        StaticFontLoader、TtfFontLoader、SystemEmojiAtlas、IconChars
+├── buffer/      LuminRingBuffer、BufferUtils
+├── immediate/   LuminImmediateRenderer
+└── video/       VideoPlayer
+```
 
-LuminGraphics `1.2.4` 的 `LuminRingBuffer` 会在当前帧耗尽可复用 slot 时按需追加 GPU buffer，
-并支持为超过初始 slot 大小的单次写入创建足够大的 slot。扩容后的资源保留到 Ring 关闭，已经提交的
-draw command 不会引用被替换或提前释放的 buffer。修改 Ring 生命周期时必须继续实测完整 Dropdown 帧。
+框架自带 UI 库见 [GUI Library](../gui-library.md)，Screen 宿主见 [GUI 架构](../gui.md)。
 
-字体缺少 code point 时，Lumin atlas 使用内置的 hollow-box glyph 继续完成测量和绘制，不得让
-`MissingGlyphException` 穿透 Minecraft GUI。`Font Glyphs Per Frame` 限制同一帧内所有 Lumin 字体合计
-写入的真实 glyph 数量；STB 栅格化在 runtime 专用后台线程串行执行，atlas 修改和 GPU 上传仍只在
-Render Thread 按预算提交。超过预算和尚未加载的 glyph 临时使用同一占位符，后续帧继续加载。
+## Renderer 生命周期
 
-`Custom Font` 的相对值不依赖 Minecraft 工作目录：先在用户目录的 `.epsilon/fonts/` 下按相对路径
-查找，再按文件名递归查找当前用户和操作系统的标准字体目录。显式绝对路径仍可直接使用。Windows
-查找 `%LOCALAPPDATA%/Microsoft/Windows/Fonts` 与 `%WINDIR%/Fonts`；macOS 和 Linux 查找各自的
-用户字体目录与系统字体目录。切换自定义字体时必须立即创建 Lumin font loader，以便路径不可读或
-字体内容无效时在配置边界记录错误并恢复 `epsilon-default`，不能让延迟解析异常逃逸到 GUI 渲染。
+所有 renderer 实现 `IRenderer`（`draw()`、`clear()`、`drawAndClear()`、`close()`，以及共享
+RenderPass 使用的 `prepareSharedDraw()` / `draw(RenderPass)`）。约束：
 
-`Font Scale` 在 LuminGraphics-MC 的 `MinecraftUiRuntime2612.UI_TEXT_SCALE` 基准上追加业务倍率，
-同时更新现有 scene 的文字 renderer 和缓存的文字测量器。默认字体与自定义字体必须共享该倍率；
-不得只缩放绘制坐标而遗漏布局测量。
+1. renderer 必须在渲染线程创建和使用；推荐 `Suppliers.memoize(Renderer::create)` 延迟创建。
+2. `XxxRenderer.create()` 会把自己注册到 `RendererManager`，关闭由 `destroyAll()` 统一处理。
+3. 一帧内 `clear()` 之后不得再 `draw()`/`drawAndClear()`；`drawAndClear()` 之后同样不得再次绘制。
+   需要多轮清空-绘制时使用新的 renderer 或 `Render2DScheduler`。
+4. renderer 使用 16 KiB 起步的 `LuminRingBuffer`，按需 `ensureCapacity` 扩容；内容不变的帧可以重复
+   `draw()` 复用已上传的 GPU 数据。
 
-字体 loader 将 `48px` 原样作为 STB 栅格化高度，`4px` SDF padding 额外扩展 glyph bitmap，不能从
-栅格化高度中扣除。LuminGraphics-MC 使用与高分辨率栅格匹配的 UI 基准倍率保持默认逻辑字号不变。
+```java
+private final Supplier<RectRenderer> rectRenderer = Suppliers.memoize(RectRenderer::create);
 
-`HudElementHolder` 每帧单独构建一棵 HUD `UiTree`：所有启用的 `HudModule` 只向该树追加节点，完成后
-整棵树一次提交到 HUD scene。Dropdown、Panel 和 HUD Editor chrome 维护各自的 GUI 树，不接收 HUD
-节点；HUD Editor 预览只在独立相对层提交 HUD 树。单个 HUD 元素使用子 layer 隔离构建失败，不能把
-未完成节点泄漏到同帧其他元素。
+rectRenderer.get().addRect(10f, 10f, 100f, 100f, Color.WHITE);
+rectRenderer.get().drawAndClear();
+```
 
-常规 HUD 在 `Gui.extractRenderState` 完成原版 HUD 提取后提交，此时 `GameRenderer.extractGui` 尚未提取
-当前 Screen。Dropdown 与 Panel 的 GUI 树因此晚于 HUD 树录制并覆盖 HUD；不得把 HUD 提交移回
-`GuiRenderer.draw`，否则 Lumin command buffer 中的 HUD 会晚于 Screen GUI，重新出现在 GUI 上方。
+## Render2DScheduler
 
-Lumin 先在每个整数 layer 内按 pipeline、scissor 和采样纹理建立批次组，再只对批次组建立遮挡依赖。
-同一 layer 不保证不同 pipeline 之间维持图元提交顺序：背景、内容、浮层等存在明确遮挡关系的 pass 必须
-使用 `UiRenderBatch.render(tree, relativeLayer)`、带相对层级的 `scene.batch(...)` 或
-`UiTree.Scope.layer(...)` 表达顺序。批次组按 bounds 建立 painter-order 依赖，并在可安全重排时优先
-选择同 pipeline 的 ready group；layer 仍按递增顺序 flush，跨 layer 不重排。scissor 与采样纹理属于
-精确批次键，字体跨 Atlas 页面不会误合并，分段阴影保持独立批次。
+`Render2DScheduler` 是 2D GUI 的唯一调度入口，负责 layer、scissor、空间桶、批次规划和 renderer 复用：
 
-Dropdown 沿用 `26.1.2` 的递增局部 layer：scrim、每个 Panel 的 Background/Content 和搜索区
-分别创建 scope 并调用 `UiRenderBatch.render(tree, relativeLayer)`，避免后提交的白色底覆盖已开启 Module
-的内容。popup 使用独立的 `POPUP` batch/layer；Panel Screen 的 CHROME、CONTENT 相对层和 POPUP 语义层，
-以及 HUD Editor 的元素、编辑框与提示层，仍必须维持各自的显式层级。
+- GUI 只提交声明式命令，`LayerHandle.add*` 写入命令流；`flush()` 时才规划批次并绘制。
+- 小批量 layer 使用平铺列表，超过 `DEFAULT_QUADTREE_THRESHOLD`（192）后升级为四叉树。
+- flush 前恢复提交序，再按命令种类和 scissor 规划批次；`KIND_FLUSH_ORDER` 固定了 shadow → roundRect →
+  outline → rect → triangle → arc → texture → 各类文本的输出顺序。
+- 需要严格遮挡顺序时必须使用不同 layer 或相对 layer，不能依赖同一 layer 内不同 pipeline 的提交顺序。
 
-`MinecraftGuiExtractionBridge2612` 负责提交世界 2D overlay 使用的独立 `GuiGraphicsExtractor` native
-state。HUD 的原版物品等不能进入 UI batch 的内容继续在 `renderOverlay(GuiGraphicsExtractor,
-DeltaTracker)` 中提交，但直接复用 `GameRenderer.extractGui` 的主 extractor，从而保持 HUD 与 Screen
-之间的原版 painter order。
+## 2D UI 渲染链
 
-资源重载在安全帧边界处理，避免活动提交引用已失效的 target、纹理或 atlas。GPU 资源仍只由创建它们的
-渲染线程释放；调用方不得在无活动帧时保留 command buffer 或 render-target lease。
+```mermaid
+flowchart LR
+    A["Screen / HUD 帧"] --> B["UiTree"]
+    B --> C["UiRenderBatch"]
+    C --> D["Render2DScheduler"]
+    D --> E["Lumin renderers"]
+```
 
-## 保留的 3D 与共享路径
+帧边界由 `MixinGuiRenderer` 在 `GuiRenderer.render` 头部驱动：
 
-本次迁移只覆盖 2D UI。`com.github.epsilon.graphics.schedulers.render3d.Render3DScheduler.INSTANCE`
-仍是 Epsilon 的 3D 命令收集入口，在 `Render3DEvent` priority `-999` 统一 flush 并清空，生产者
-priority 必须大于 `-999`。
+```text
+GuiRenderer.render HEAD
+  -> HudEditorScreen.renderPendingHudElements()
+  -> Render2DEvent.Level（世界 2D 覆盖层）
+  -> EpsilonGuiRenderer.render() / endFrame()
+  -> Render2DEvent.HUD（HUD 与界面）
+  -> EpsilonGuiRenderer.render() / endFrame()
+  -> 原版 GuiRenderer 继续提交提取结果
+```
 
-`com.github.epsilon.graphics.LuminRenderSystem` 以及现有 3D shaders、buffers 和 immediate paths
-继续由 Epsilon 维护和使用；这些 3D/shared 行为没有迁移到 2D runtime，也不得因 2D 改动而改变。
+`HudElementManager` 订阅 `Render2DEvent.HUD`：先 `scene.beginFrame()`，逐个启用的 `HudModule` 调用
+`renderWithBatch(deltaTracker, scene.batch(UiLayer.CONTENT))` 提交声明式节点，再 `scene.endFrame()`
+统一 flush；随后对每个元素调用 `renderOverlay(GuiGraphicsExtractor, DeltaTracker)` 补画物品等原版内容。
+同一个 `UiScene` 的 `beginFrame()` 与 `endFrame()` 必须配对，`endFrame()` 之后不得再向该帧提交命令。
+
+## 保留的 3D 路径
+
+`Render3DScheduler.INSTANCE` 是 Epsilon 的 3D 命令收集入口，支持填充盒、描边盒、侧面、线条和模糊盒。
+它订阅 `Render3DEvent` 并在 priority `-999` 统一 flush 并清空，生产者的 priority 必须大于 `-999`。
+3D shader、buffer 和 immediate renderer 仍在 `graphics/` 中维护，不经过 2D runtime。
+
+## 后处理与 shader
+
+- `BlurShader.INSTANCE.render(...)` 做 2D 区域模糊，`render3DBox(AABB, strength)` 由 3D scheduler 调用。
+- `FXAAShader.INSTANCE.renderMainTarget()`、`FilterShader.INSTANCE.renderToMainTarget(color)`、
+  `MotionBlurShader.INSTANCE` 直接作用于主 render target，由对应模块驱动。
+- `CustomSkyShader.INSTANCE.render(target, CustomSky.INSTANCE)` 由 `MixinLevelRenderer` 在天空阶段调用。
+- `GlslSandBox` 提供主菜单背景着色器（sea level、clouds、alien terrain、inferno、planet、black hole、
+  minecraft 等）。
+
+调用后处理前必须核验 render target 尺寸、采样器和当前 `RenderPipeline` 状态，避免引用已释放的
+texture/view；GPU 资源只由创建它们的渲染线程释放。
+
+## 字体
+
+- `StaticFontLoader.DEFAULT` 是业务默认字体，另有 `ICONS`、`JURA_LIGHT`、`CINZEL_DECORATIVE`、
+  `OSAKA_CHIPS` 等内置 TTF。
+- `TtfFontLoader` 以 atlas 批量渲染字形：`requestChars`/`prepareChars` 提交请求，
+  `drainReadyGlyphs` 在渲染线程按预算上传；`TtfFontLoader.beginRenderFrame()` 每帧重置预算，
+  预算由 `ClientSetting.fontGlyphsPerFrame` 映射到 `TtfFontLoader.setMaxGlyphUploadsPerFrame(...)`。
+- 缺字（字形尚未上传或字体根本没有该字形）由 `TtfFontLoader.getFallbackGlyph(int)` 提供“口”字形占位框：
+  首次调用时按字体 ascent 程序化生成 SDF/alpha 位图并写入 atlas，之后所有缺字复用同一个 atlas 单元；
+  占位框 advance 与 `getAdvance(int)` 一致，所以真实字形上传后布局不跳动。`TtfTextRenderer.buildLayout`
+  在 `getGlyph` 为 null 时用它顶上，并保持布局 `complete = false`，字形到达推进 `glyphRevision` 后重建；
+  空白、控制、格式与代理码位没有墨迹，不画占位框。占位框 SDF 极性必须与 `TtfFontFile.generateGlyph`
+  一致：那里的 `onEdgeValue` 是 byte 128（即 -128），使 `pixelDistScale` 为负，墨迹落在 128 以下、
+  外部落在 128 以上，着色器按 `1 - r` 解释该纹理。`EpsilonFontGlyph` 缺字仍返回 null 交给原版字体兜底，
+  不画占位框，避免盖掉原版能渲染的字符。
+- `StaticFontLoader.defaultFont()` 依据 `ClientSetting.font`（Default/Custom）解析字体；Custom 模式先按
+  绝对/相对路径直接查找，相对路径再依次尝试工作目录和用户目录 `.epsilon/fonts/`，最后按文件名在系统
+  字体目录中递归查找；路径不可读或字体无效时回退内置字体并记录日志。
+- Vulkan 后端下 atlas 上传必须走 `TtfGlyphAtlas` 内部的 `TransientMemory.allocateStaging` +
+  `copyBufferToTexture`：blaze3d 的 `writeToTexture(ByteBuffer)` 固定按 alignment = 1 申请 staging，
+  R8 字形长度不保证 4 字节对齐，会让共享暂存游标错位，导致后续 RGBA8 纹理上传出现非法的
+  `VkBufferImageCopy.bufferOffset`；OpenGL 后端保持原有上传路径。后端由
+  `LuminRenderSystem.IS_VULKAN_BACKEND` 判定一次并复用，不得在调用点重复查询 `DeviceInfo`。
+- 文本测量与绘制必须使用同一 `TtfFontLoader` 与 scale：`TextRenderer.getWidth/getHeight` 与
+  `addText` 共享字体实例。
 
 ## World To Screen
 
-`WorldToScreen` 提供三个公共函数：
+`com.github.epsilon.utils.render.WorldToScreen` 提供三个公共函数：
 
-- `calcWorld2ScreenRaw(Vec3)`：按当前 Lumin runtime `SurfaceMetrics.logicalSize()` 返回逻辑屏幕
-  `x/y`；`z` 是以世界单位表示的视图空间前向深度，不再额外除以 GUI scale。
+- `calcWorld2ScreenRaw(Vec3)`：返回 Lumin 逻辑坐标 `Vector3f`，`z` 是以世界单位表示的视图空间前向深度。
 - `calcWorld2Screen(Vec3)`：默认入口；深度小于 `Camera.PROJECTION_Z_NEAR` 时返回 `null`。
-- `calcScale(Vec3)`：根据当前投影矩阵和前向深度返回透视 UI 缩放；每世界单位投影为 20 个 Lumin 像素时取 `1.0`。
+- `calcScale(Vec3)`：按当前投影矩阵返回透视 UI 缩放；每世界单位投影为 20 个 Lumin 像素时取 `1.0`，
+  深度无效时返回 `0`。
 
-2D AABB 边界通过投影全部 8 个顶点并取有效屏幕坐标的最小/最大值计算；没有有效投影或边界完全位于屏幕外时拒绝该边界。
+2D AABB 边界必须投影全部 8 个顶点后取屏幕空间最小/最大值，并把跨越近裁剪面的边与近裁剪面的交点纳入
+边界；没有有效投影时拒绝该边界。调用方不得再次除以 GUI scale，也不得自行用归一化深度判断摄像机后方。
 
-## 字体与原版桥接
+## 原版桥接
 
-业务文本使用 `MinecraftUiRuntime2612.current()` 提供的字体与 text metrics；字体选择、glyph atlas 和
-Minecraft texture bridge 随 runtime 的资源重载 generation 更新。原版 `Font` 的 Epsilon 设置 Mixin
-仍保留，但 glyph、宽度和 atlas 资源由 LuminGraphics-MC 的公开 Minecraft API 适配。
-
-帧内 UI、3D scheduler 和共享 GPU 生命周期的强制约束见 [`AGENTS.md`](../../AGENTS.md)。
+`EpsilonGuiRenderer` 复用原版 `GuiRenderState` 与 `FeatureRenderDispatcher`，负责在 Epsilon 事件之后
+提交提取结果。需要走原版管线的内容（物品、提示框等）继续使用 `GuiGraphicsExtractor`；Epsilon 的
+UI 节点则由 Lumin 渲染，两者在 `GuiRenderer.render` 中按固定顺序合并。

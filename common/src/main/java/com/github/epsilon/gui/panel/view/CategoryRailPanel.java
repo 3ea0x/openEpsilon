@@ -2,18 +2,17 @@ package com.github.epsilon.gui.panel.view;
 
 import com.github.epsilon.Constants;
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.text.icon.IconChars;
-
-
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.graphics.text.IconChars;
+import com.github.epsilon.graphics.text.StaticFontLoader;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
 import com.github.epsilon.gui.panel.PanelState;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.holders.ModuleHolder;
-import com.github.epsilon.managers.Managers;
-import com.github.epsilon.managers.impl.sound.SoundKey;
+import com.github.epsilon.managers.ModuleManager;
+import com.github.epsilon.managers.sound.SoundKey;
+import com.github.epsilon.managers.sound.SoundManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
@@ -31,7 +30,7 @@ public class CategoryRailPanel {
     private static final String SETTINGS_ICON = IconChars.SETTINGS;
 
     protected final PanelState state;
-    private final UiTextMetrics textRenderer;
+    private final TextRenderer textRenderer;
     private final Animation expandAnimation = new Animation(Easing.EASE_OUT_CUBIC, 240L);
     private final Animation contentAnimation = new Animation(Easing.EASE_OUT_CUBIC, 180L);
     private final Animation menuHoverAnimation = new Animation(Easing.EASE_OUT_CUBIC, 120L);
@@ -45,7 +44,7 @@ public class CategoryRailPanel {
     private final Animation settingsHoverAnimation = new Animation(Easing.EASE_OUT_CUBIC, 120L);
     private UiRect bounds;
 
-    public CategoryRailPanel(PanelState state, UiTextMetrics textRenderer) {
+    public CategoryRailPanel(PanelState state, TextRenderer textRenderer) {
         this.state = state;
         this.textRenderer = textRenderer;
         this.expandAnimation.setStartValue(MD3Theme.RAIL_COLLAPSED_WIDTH);
@@ -94,7 +93,7 @@ public class CategoryRailPanel {
             float categoryStartY = getCategoryStartY(bounds);
             if (titleProgress > 0.02f) {
                 float titleY = 7.0f;
-                float titleHeight = textRenderer.textHeight(titleScale, null);
+                float titleHeight = textRenderer.getHeight(titleScale);
                 float pad = 3.0f;
                 float subtitleY = titleY + titleHeight + pad;
                 float titleOffset = (1.0f - titleProgress) * 8.0f;
@@ -105,7 +104,7 @@ public class CategoryRailPanel {
                         rail.text(Constants.VERSION, 38.0f + subtitleOffset, subtitleY, subtitleScale, MD3Theme.withAlpha(MD3Theme.TEXT_SECONDARY, (int) (210 * subtitleProgress)));
                     }
                     if (dividerProgress > 0.02f) {
-                        float dividerY = subtitleY + textRenderer.textHeight(subtitleScale, null) + 4.0f;
+                        float dividerY = subtitleY + textRenderer.getHeight(subtitleScale) + 4.0f;
                         float dividerBaseX = 7.0f;
                         float dividerTargetWidth = bounds.width() - 14.0f;
                         float dividerWidth = dividerTargetWidth * dividerProgress;
@@ -189,7 +188,7 @@ public class CategoryRailPanel {
         }
         if (getMenuButtonBounds().contains(event.x(), event.y())) {
             state.toggleSidebarExpanded();
-            Managers.SOUND.playInUi(state.isSidebarExpanded() ? SoundKey.SETTINGS_OPEN : SoundKey.SETTINGS_CLOSE);
+            SoundManager.INSTANCE.playInUi(state.isSidebarExpanded() ? SoundKey.SETTINGS_OPEN : SoundKey.SETTINGS_CLOSE);
             return true;
         }
 
@@ -263,25 +262,24 @@ public class CategoryRailPanel {
         Color iconColor = selected ? MD3Theme.ON_SECONDARY_CONTAINER : (hovered ? MD3Theme.TEXT_PRIMARY : MD3Theme.TEXT_SECONDARY);
         Color labelColor = selected ? MD3Theme.ON_SECONDARY_CONTAINER : MD3Theme.TEXT_PRIMARY;
         Color countColor = selected ? MD3Theme.ON_SECONDARY_CONTAINER : MD3Theme.TEXT_SECONDARY;
-        var iconFont = "epsilon-icons";
-        float iconHeight = textRenderer.textHeight(itemIconScale, iconFont);
-        float labelHeight = textRenderer.textHeight(itemLabelScale, null);
-        float countHeight = textRenderer.textHeight(itemCountScale, null);
-        float iconY = (itemRect.height() - iconHeight) / 2.0f - 2.0f;
+        float iconHeight = textRenderer.getHeight(itemIconScale, StaticFontLoader.ICONS);
+        float labelHeight = textRenderer.getHeight(itemLabelScale);
+        float countHeight = textRenderer.getHeight(itemCountScale);
+        float iconY = (itemRect.height() - iconHeight) / 2.0f;
         float labelY = (itemRect.height() - labelHeight) / 2.0f;
         float countY = (itemRect.height() - countHeight) / 2.0f;
 
         scope.pushAbsolute(itemRect, item -> {
             item.roundRect(0.0f, 0.0f, itemRect.width(), itemRect.height(), MD3Theme.CARD_RADIUS, background);
-            float iconWidth = textRenderer.textWidth(category.icon, itemIconScale, iconFont);
+            float iconWidth = textRenderer.getWidth(category.icon, itemIconScale, StaticFontLoader.ICONS);
             float iconX = getRailIconCenterX(menuButton) - itemRect.x() - iconWidth / 2.0f;
-            item.text(category.icon, iconX, iconY, itemIconScale, iconColor, iconFont);
+            item.text(category.icon, iconX, iconY, itemIconScale, iconColor, StaticFontLoader.ICONS);
             if (contentProgress > 0.02f) {
                 float textOffset = (1.0f - contentProgress) * 5.0f;
                 Color animatedLabel = MD3Theme.withAlpha(labelColor, (int) (255 * contentProgress));
                 Color animatedCount = MD3Theme.withAlpha(countColor, (int) (220 * contentProgress));
                 item.text(category.getName(), 30.0f + textOffset, labelY, itemLabelScale, animatedLabel);
-                float countWidth = textRenderer.textWidth(Integer.toString(count), itemCountScale, null);
+                float countWidth = textRenderer.getWidth(Integer.toString(count), itemCountScale);
                 item.text(Integer.toString(count), itemRect.width() - 12.0f - countWidth, countY, itemCountScale, animatedCount);
             }
         });
@@ -296,16 +294,15 @@ public class CategoryRailPanel {
         Color settingsLabelColor = settingsSelected ? MD3Theme.ON_SECONDARY_CONTAINER : MD3Theme.TEXT_PRIMARY;
         scope.pushAbsolute(settingsRect, settings -> {
             settings.roundRect(0.0f, 0.0f, settingsRect.width(), settingsRect.height(), MD3Theme.CARD_RADIUS, settingsBg);
-            var settingsIconFont = "epsilon-icons";
-            float settingsIconWidth = textRenderer.textWidth(SETTINGS_ICON, itemIconScale, settingsIconFont);
+            float settingsIconWidth = textRenderer.getWidth(SETTINGS_ICON, itemIconScale, StaticFontLoader.ICONS);
             float settingsIconX = getRailIconCenterX(menuButton) - settingsRect.x() - settingsIconWidth / 2.0f;
-            float settingsIconHeight = textRenderer.textHeight(itemIconScale, settingsIconFont);
-            float settingsIconY = (settingsRect.height() - settingsIconHeight) / 2.0f - 2.0f;
-            settings.text(SETTINGS_ICON, settingsIconX, settingsIconY, itemIconScale, settingsIconColor, settingsIconFont);
+            float settingsIconHeight = textRenderer.getHeight(itemIconScale, StaticFontLoader.ICONS);
+            float settingsIconY = (settingsRect.height() - settingsIconHeight) / 2.0f;
+            settings.text(SETTINGS_ICON, settingsIconX, settingsIconY, itemIconScale, settingsIconColor, StaticFontLoader.ICONS);
             if (contentProgress > 0.02f) {
                 float textOffset = (1.0f - contentProgress) * 5.0f;
                 Color animatedLabel = MD3Theme.withAlpha(settingsLabelColor, (int) (255 * contentProgress));
-                float settingsLabelHeight = textRenderer.textHeight(itemLabelScale, null);
+                float settingsLabelHeight = textRenderer.getHeight(itemLabelScale);
                 float settingsLabelY = (settingsRect.height() - settingsLabelHeight) / 2.0f;
                 settings.text(EpsilonTranslations.Gui.CLIENT_SETTINGS.getTranslatedName(), 30.0f + textOffset, settingsLabelY, itemLabelScale, animatedLabel);
             }
@@ -317,7 +314,7 @@ public class CategoryRailPanel {
     }
 
     private int getCategoryCount(Category category) {
-        return (int) ModuleHolder.INSTANCE.getModules().stream().filter(module -> module.getCategory() == category).count();
+        return (int) ModuleManager.INSTANCE.getModules().stream().filter(module -> module.getCategory() == category).count();
     }
 
 }

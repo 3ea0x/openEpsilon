@@ -92,8 +92,8 @@ public class InvUtils {
      * 在背包范围内查找匹配物品并汇总数量。
      *
      * @param isGood 物品匹配谓词
-     * @param start 搜索起始槽位（含）
-     * @param end 搜索结束槽位（含）
+     * @param start  搜索起始槽位（含）
+     * @param end    搜索结束槽位（含）
      * @return 操作结果
      */
     public static FindItemResult find(Predicate<ItemStack> isGood, int start, int end) {
@@ -115,7 +115,7 @@ public class InvUtils {
     /**
      * 切换玩家当前选中的快捷栏槽位。
      *
-     * @param slot 背包、容器或装备槽位
+     * @param slot     背包、容器或装备槽位
      * @param saveSwap 是否保存切换前的槽位以便恢复
      */
     public static void swap(int slot, boolean saveSwap) {

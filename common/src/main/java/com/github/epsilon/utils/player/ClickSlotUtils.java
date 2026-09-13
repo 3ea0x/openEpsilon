@@ -10,9 +10,9 @@ public class ClickSlotUtils {
      * 向容器发送指定类型的槽位操作。
      *
      * @param containerId 容器同步编号
-     * @param slot 背包、容器或装备槽位
-     * @param button 点击按钮编号
-     * @param action 容器操作类型
+     * @param slot        背包、容器或装备槽位
+     * @param button      点击按钮编号
+     * @param action      容器操作类型
      */
     public static void clickSlot(int containerId, int slot, int button, ContainerInput action) {
         mc.gameMode.handleContainerInput(containerId, slot, button, action, mc.player);
@@ -21,7 +21,7 @@ public class ClickSlotUtils {
     /**
      * 向容器发送指定类型的槽位操作。
      *
-     * @param slot 背包、容器或装备槽位
+     * @param slot   背包、容器或装备槽位
      * @param button 点击按钮编号
      * @param action 容器操作类型
      */
@@ -33,7 +33,7 @@ public class ClickSlotUtils {
      * 对容器槽位执行普通点击。
      *
      * @param containerId 容器同步编号
-     * @param slot 背包、容器或装备槽位
+     * @param slot        背包、容器或装备槽位
      */
     public static void click(int containerId, int slot) {
         clickSlot(containerId, slot, 0, ContainerInput.PICKUP);
@@ -52,7 +52,7 @@ public class ClickSlotUtils {
      * 对容器槽位执行快速移动点击。
      *
      * @param containerId 容器同步编号
-     * @param slot 背包、容器或装备槽位
+     * @param slot        背包、容器或装备槽位
      */
     public static void shiftClick(int containerId, int slot) {
         clickSlot(containerId, slot, 0, ContainerInput.QUICK_MOVE);
@@ -71,7 +71,7 @@ public class ClickSlotUtils {
      * 从容器槽位丢出一个物品。
      *
      * @param containerId 容器同步编号
-     * @param slot 背包、容器或装备槽位
+     * @param slot        背包、容器或装备槽位
      */
     public static void drop(int containerId, int slot) {
         clickSlot(containerId, slot, 0, ContainerInput.THROW);
@@ -90,7 +90,7 @@ public class ClickSlotUtils {
      * 丢出容器槽位中的整组物品。
      *
      * @param containerId 容器同步编号
-     * @param slot 背包、容器或装备槽位
+     * @param slot        背包、容器或装备槽位
      */
     public static void dropAll(int containerId, int slot) {
         clickSlot(containerId, slot, 1, ContainerInput.THROW);
@@ -109,8 +109,8 @@ public class ClickSlotUtils {
      * 将容器槽位与快捷栏槽位交换。
      *
      * @param containerId 容器同步编号
-     * @param slot 背包、容器或装备槽位
-     * @param hotbarSlot 快捷栏槽位编号
+     * @param slot        背包、容器或装备槽位
+     * @param hotbarSlot  快捷栏槽位编号
      */
     public static void swap(int containerId, int slot, int hotbarSlot) {
         clickSlot(containerId, slot, hotbarSlot, ContainerInput.SWAP);
@@ -119,7 +119,7 @@ public class ClickSlotUtils {
     /**
      * 将容器槽位与快捷栏槽位交换。
      *
-     * @param slot 背包、容器或装备槽位
+     * @param slot       背包、容器或装备槽位
      * @param hotbarSlot 快捷栏槽位编号
      */
     public static void swap(int slot, int hotbarSlot) {

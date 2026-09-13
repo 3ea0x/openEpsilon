@@ -21,10 +21,6 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
-/*
- * Author Moli
- */
-
 public class TriggerBot extends Module {
 
     public static final TriggerBot INSTANCE = new TriggerBot();
@@ -51,7 +47,7 @@ public class TriggerBot extends Module {
 
     @EventHandler
     public void onTick(PlayerTickEvent.Pre event) {
-        if (nullCheck() || mc.screen != null) return;
+        if (nullCheck() || mc.gui.screen() != null) return;
 
         if (mc.player.isUsingItem() || mc.player.isBlocking()) {
             return;

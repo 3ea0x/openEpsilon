@@ -13,7 +13,7 @@ public class Hole {
     /**
      * 创建指定起点和类型的洞结构描述。
      *
-     * @param pos 目标位置
+     * @param pos  目标位置
      * @param type 洞结构类型
      */
     public Hole(BlockPos pos, HoleType type) {

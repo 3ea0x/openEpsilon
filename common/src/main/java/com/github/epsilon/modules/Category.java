@@ -2,7 +2,7 @@ package com.github.epsilon.modules;
 
 import com.github.epsilon.assets.i18n.EpsilonTranslateComponent;
 import com.github.epsilon.assets.i18n.TranslateComponent;
-import com.github.slmpc.lumingraphics.text.icon.IconChars;
+import com.github.epsilon.graphics.text.IconChars;
 
 public enum Category {
 

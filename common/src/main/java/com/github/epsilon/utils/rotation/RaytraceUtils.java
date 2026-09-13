@@ -28,7 +28,7 @@ public class RaytraceUtils {
      * 按指定旋转执行方块和实体射线追踪。
      *
      * @param rotation 旋转角
-     * @param range 射线追踪或自适应选点距离
+     * @param range    射线追踪或自适应选点距离
      * @return 操作结果
      */
     public static HitResult raytrace(Rot2f rotation, double range) {
@@ -39,8 +39,8 @@ public class RaytraceUtils {
      * 按指定旋转执行方块和实体射线追踪。
      *
      * @param rotation 旋转角
-     * @param range 射线追踪或自适应选点距离
-     * @param expand 实体包围盒扩大量
+     * @param range    射线追踪或自适应选点距离
+     * @param expand   实体包围盒扩大量
      * @return 操作结果
      */
     public static HitResult raytrace(Rot2f rotation, double range, float expand) {
@@ -51,9 +51,9 @@ public class RaytraceUtils {
      * 按指定旋转执行方块和实体射线追踪。
      *
      * @param rotation 旋转角
-     * @param range 射线追踪或自适应选点距离
-     * @param expand 实体包围盒扩大量
-     * @param entity 实体
+     * @param range    射线追踪或自适应选点距离
+     * @param expand   实体包围盒扩大量
+     * @param entity   实体
      * @return 操作结果
      */
     public static HitResult raytrace(Rot2f rotation, double range, float expand, Entity entity) {
@@ -130,9 +130,9 @@ public class RaytraceUtils {
      * 判断指定旋转是否命中目标方块或指定方块面。
      *
      * @param rotation 旋转角
-     * @param dir 预期命中的方块面
-     * @param pos 目标位置
-     * @param strict 是否要求命中指定方块面
+     * @param dir      预期命中的方块面
+     * @param pos      目标位置
+     * @param strict   是否要求命中指定方块面
      * @return 判断结果
      */
     public static boolean overBlock(Rot2f rotation, Direction dir, BlockPos pos, boolean strict) {
@@ -161,8 +161,8 @@ public class RaytraceUtils {
      * 判断指定旋转是否命中目标方块或指定方块面。
      *
      * @param rotation 旋转角
-     * @param pos 目标位置
-     * @param strict 是否要求命中指定方块面
+     * @param pos      目标位置
+     * @param strict   是否要求命中指定方块面
      * @return 判断结果
      */
     public static boolean overBlock(Rot2f rotation, BlockPos pos, boolean strict) {
@@ -173,7 +173,7 @@ public class RaytraceUtils {
      * 判断指定旋转是否命中目标方块或指定方块面。
      *
      * @param rotation 旋转角
-     * @param pos 目标位置
+     * @param pos      目标位置
      * @return 判断结果
      */
     public static boolean overBlock(Rot2f rotation, BlockPos pos) {
@@ -183,8 +183,8 @@ public class RaytraceUtils {
     /**
      * 判断指定旋转是否命中目标方块或指定方块面。
      *
-     * @param rotation 旋转角
-     * @param pos 目标位置
+     * @param rotation   旋转角
+     * @param pos        目标位置
      * @param enumFacing 预期命中的方块面
      * @return 判断结果
      */

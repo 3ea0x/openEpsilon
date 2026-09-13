@@ -1,22 +1,25 @@
 package com.github.epsilon.gui.dropdown;
 
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
+import com.github.epsilon.graphics.LuminRenderSystem;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.graphics.text.ttf.TtfFontLoader;
 import com.github.epsilon.gui.dropdown.component.*;
 import com.github.epsilon.gui.dropdown.widget.DropdownTextField;
-import com.github.epsilon.gui.utils.UiCoordinateMapper;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
-import com.github.slmpc.lumingraphics.ui.scene.UiLayer;
-import com.github.slmpc.lumingraphics.ui.scene.UiScene;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
+import com.github.epsilon.gui.lib.scene.UiLayer;
+import com.github.epsilon.gui.lib.scene.UiScene;
 import com.github.epsilon.gui.panel.popup.PanelPopupHost;
 import com.github.epsilon.gui.panel.popup.RegistryListSelectPopup;
 import com.github.epsilon.gui.panel.popup.StringListSelectPopup;
 import com.github.epsilon.gui.panel.utils.IMEFocusHelper;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
+import com.github.epsilon.gui.utils.ModuleTooltip;
+import com.github.epsilon.managers.AssetManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.impl.RegistryListSetting;
@@ -42,19 +45,21 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-public class DropdownScreen extends Screen {
+public class DropdownScreen extends Screen implements ListSettingPopupScreen {
 
     public static final DropdownScreen INSTANCE = new DropdownScreen();
 
     private final List<DropdownPanel> panels = new ArrayList<>();
-    private UiTextMetrics uiTextMetrics;
-    private UiScene scene;
-    private MinecraftUiRuntime2612 sceneRuntime;
+    private final TextRenderer textMetrics = TextRenderer.create();
+    private final UiTextMetrics uiTextMetrics = new DropdownTextMetrics();
+    private final UiScene scene = new UiScene(EpsilonUiTheme.INSTANCE);
     private final PanelPopupHost popupHost = new PanelPopupHost();
     private final Animation scrimAnim = new Animation(Easing.EASE_OUT_SINE, 200L);
     private final DropdownTextField searchField = new DropdownTextField(64);
+    private final ReisaDropdownCompanion reisaCompanion = new ReisaDropdownCompanion();
     private final Set<String> visiblePanelIds = new HashSet<>();
 
+    private LuminRenderSystem.LuminRenderTarget renderTarget;
     private IMEPreeditOverlay preeditOverlay;
     private boolean initialized;
     private int sessionId;
@@ -71,6 +76,12 @@ public class DropdownScreen extends Screen {
     protected void init() {
         super.init();
         sessionId++;
+        if (ClientSetting.INSTANCE.showReisaInDropdown.getValue() && !AssetManager.INSTANCE.isReisaReady()) {
+            AssetManager.INSTANCE.requestDownload(java.util.List.of(AssetManager.Asset.REISA));
+        }
+        if (isReisaCompanionEnabled()) {
+            reisaCompanion.open(sessionId);
+        }
         scrimAnim.setStartValue(0.0f);
         scrimAnim.run(0.0f);
         scrimAnim.run(1.0f);
@@ -88,47 +99,35 @@ public class DropdownScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
-        MinecraftUiRuntime2612 runtime = MinecraftUiRuntime2612.current();
-        ClientSetting.INSTANCE.configureMinecraftFonts(runtime);
-        int epsilonMouseX = UiCoordinateMapper.toProjectionX(mouseX);
-        int epsilonMouseY = UiCoordinateMapper.toProjectionY(mouseY);
-        prepareScene(runtime);
-        runtime.render(scene, activeScene -> drawGui(graphics, activeScene,
-                epsilonMouseX, epsilonMouseY, partialTick));
+        final var window = minecraft.getWindow();
+        if (renderTarget == null) {
+            renderTarget = LuminRenderSystem.LuminRenderTarget.create("dropdown-gui", window.getWidth(), window.getHeight());
+        }
+        renderTarget.resize(window.getWidth(), window.getHeight());
+        renderTarget.clear();
+        LuminRenderSystem.setActiveTarget(renderTarget);
+        scene.beginFrame();
+
+        int epsilonMouseX = LuminRenderSystem.toEpsilonMouseX(mouseX);
+        int epsilonMouseY = LuminRenderSystem.toEpsilonMouseY(mouseY);
+        drawGui(graphics, epsilonMouseX, epsilonMouseY, partialTick);
+        scene.clear();
+
+        LuminRenderSystem.setActiveTarget(null);
         if (preeditOverlay != null) {
-            preeditOverlay.updateInputPosition(
-                    (int) UiCoordinateMapper.toMinecraftX(IMEFocusHelper.activeCursorX),
-                    (int) UiCoordinateMapper.toMinecraftY(IMEFocusHelper.activeCursorY));
+            preeditOverlay.updateInputPosition((int) IMEFocusHelper.activeCursorX, (int) IMEFocusHelper.activeCursorY);
             graphics.setPreeditOverlay(preeditOverlay);
         }
+        graphics.blit(renderTarget.getIdentifier(), 0, 0, window.getGuiScaledWidth(), window.getGuiScaledHeight(), 0, 1, 1, 0);
         popupHost.extractOverlay(graphics, epsilonMouseX, epsilonMouseY, partialTick);
     }
 
-    private void prepareScene(MinecraftUiRuntime2612 runtime) {
-        if (scene != null && sceneRuntime == runtime) return;
-        releaseScene();
-        scene = runtime.createScene(EpsilonUiTheme.lumin());
-        sceneRuntime = runtime;
-        uiTextMetrics = runtime.textMetrics();
-    }
-
-    private void releaseScene() {
-        UiScene previous = scene;
-        scene = null;
-        sceneRuntime = null;
-        uiTextMetrics = null;
-        dropdownBatch = null;
-        dropdownScope = null;
-        if (previous != null) previous.close();
-    }
-
-    private void drawGui(GuiGraphicsExtractor graphics, UiScene activeScene, int mouseX, int mouseY, float partialTick) {
-        float uiWidth = UiCoordinateMapper.getProjectionWidth();
-        float uiHeight = UiCoordinateMapper.getProjectionHeight();
+    private void drawGui(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         scrimAnim.run(1.0f);
-        dropdownBatch = activeScene.batch(UiLayer.CONTENT);
+        ModuleTooltip.clear();
+        dropdownBatch = scene.batch(UiLayer.CONTENT);
         dropdownLayer = -10;
-        popupHost.setOverlayBounds(new UiRect(0.0f, 0.0f, uiWidth, uiHeight));
+        popupHost.setOverlayBounds(new UiRect(0.0f, 0.0f, LuminRenderSystem.getScaledWidth(), LuminRenderSystem.getScaledHeight()));
         updatePanelHeightLimits();
         updateVisiblePanelIds();
         beginPanelFrames();
@@ -136,7 +135,7 @@ public class DropdownScreen extends Screen {
         beginDropdownLayer();
         Color scrim = DropdownTheme.scrim();
         float scrimAlpha = scrimAnim.getValue();
-        dropdownScope.rect(0, 0, uiWidth, uiHeight, new Color(scrim.getRed(), scrim.getGreen(), scrim.getBlue(), (int) (scrim.getAlpha() * scrimAlpha)));
+        dropdownScope.rect(0, 0, LuminRenderSystem.getScaledWidth(), LuminRenderSystem.getScaledHeight(), new Color(scrim.getRed(), scrim.getGreen(), scrim.getBlue(), (int) (scrim.getAlpha() * scrimAlpha)));
         flushDropdownLayer();
 
         float shadowPad = DropdownTheme.PANEL_SHADOW_BLUR + 4.0f;
@@ -156,6 +155,20 @@ public class DropdownScreen extends Screen {
                     break;
                 }
             }
+        }
+
+        if (isReisaCompanionEnabled()) {
+            reisaCompanion.open(sessionId);
+            beginDropdownLayer();
+            reisaCompanion.draw(
+                    dropdownScope,
+                    LuminRenderSystem.getScaledWidth(),
+                    LuminRenderSystem.getScaledHeight(),
+                    mouseX,
+                    mouseY,
+                    popupHovered || topmostHovered != null
+            );
+            flushDropdownLayer();
         }
 
         for (DropdownPanel panel : panels) {
@@ -197,7 +210,14 @@ public class DropdownScreen extends Screen {
         }
 
         drawSearch(backgroundMouseX, backgroundMouseY);
-        popupHost.render(graphics, activeScene.batch(UiLayer.POPUP), mouseX, mouseY, partialTick);
+        popupHost.render(graphics, scene.batch(UiLayer.POPUP), mouseX, mouseY, partialTick);
+
+        // 悬停描述提示提交到最高层，本帧请求在此消费后随 scene.flush() 一起绘制。
+        scene.submit(UiLayer.OVERLAY, UiTree.build(scope -> ModuleTooltip.render(scope, uiTextMetrics,
+                LuminRenderSystem.getScaledWidth(), LuminRenderSystem.getScaledHeight())));
+
+        scene.flush();
+        popupHost.flush();
     }
 
     private void drawSearch(int mouseX, int mouseY) {
@@ -213,24 +233,27 @@ public class DropdownScreen extends Screen {
         if (ClientSetting.INSTANCE.dropdownHints.getValue()) {
             float scale = 0.62f;
             float lineGap = 5.0f;
-            float lineHeight = uiTextMetrics.textHeight(scale, null);
+            float lineHeight = uiTextMetrics.textHeight(scale);
             String[] hints = {
                     EpsilonTranslations.Gui.DROPDOWN_HINT_SEARCH.getTranslatedName(),
                     EpsilonTranslations.Gui.DROPDOWN_HINT_PANELS.getTranslatedName(),
                     EpsilonTranslations.Gui.DROPDOWN_HINT_DRAG.getTranslatedName()
             };
-            float screenWidth = UiCoordinateMapper.getProjectionWidth();
+            float screenWidth = LuminRenderSystem.getScaledWidth();
             float xRight = screenWidth - DropdownTheme.PANEL_MARGIN_X;
+            if (isReisaCompanionEnabled()) {
+                float companionLeft = reisaCompanion.getLeftEdge(screenWidth, LuminRenderSystem.getScaledHeight());
+                xRight = Math.min(xRight, companionLeft - 8.0f);
+            }
             xRight = Math.max(getSearchX() + getSearchWidth(), xRight);
-            float y = UiCoordinateMapper.getProjectionHeight() - DropdownTheme.PANEL_MARGIN_Y
-                    - hints.length * lineHeight - (hints.length - 1) * lineGap;
+            float y = LuminRenderSystem.getScaledHeight() - DropdownTheme.PANEL_MARGIN_Y - hints.length * lineHeight - (hints.length - 1) * lineGap;
             int alpha = (int) (255 * scrimAnim.getValue());
             if (alpha <= 0) {
                 return;
             }
             Color color = MD3Theme.withAlpha(Color.WHITE, alpha);
             for (String hint : hints) {
-                float x = xRight - uiTextMetrics.textWidth(hint, scale, null);
+                float x = xRight - uiTextMetrics.textWidth(hint, scale);
                 dropdownScope.text(hint, x, y, scale, color);
                 y += lineHeight + lineGap;
             }
@@ -244,7 +267,6 @@ public class DropdownScreen extends Screen {
     }
 
     private void flushDropdownLayer() {
-        // 每个可遮挡 pass 使用独立 layer；不相交的批次仍可由 scheduler 跨 layer 合并。
         dropdownBatch.render(UiTree.from(dropdownScope), dropdownLayer);
     }
 
@@ -253,18 +275,50 @@ public class DropdownScreen extends Screen {
         dropdownScope.scissorIf(required, new UiRect(guiX, guiY, guiW, guiH), content);
     }
 
+    private final class DropdownTextMetrics implements UiTextMetrics {
+        @Override
+        public float textWidth(String text, float scale) {
+            return textMetrics.getWidth(text, scale);
+        }
+
+        @Override
+        public float textWidth(String text, float scale, TtfFontLoader fontLoader) {
+            return textMetrics.getWidth(text, scale, fontLoader);
+        }
+
+        @Override
+        public float textHeight(float scale) {
+            return textMetrics.getHeight(scale);
+        }
+
+        @Override
+        public float textHeight(float scale, TtfFontLoader fontLoader) {
+            return textMetrics.getHeight(scale, fontLoader);
+        }
+    }
+
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean isDoubleClick) {
-        MouseButtonEvent epsilonEvent = UiCoordinateMapper.toProjectionEvent(event);
+        MouseButtonEvent epsilonEvent = LuminRenderSystem.toEpsilonMouseEvent(event);
         double mx = epsilonEvent.x();
         double my = epsilonEvent.y();
         int button = epsilonEvent.button();
 
         if (popupHost.mouseClicked(epsilonEvent, isDoubleClick)) {
+            react(ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
 
+        if (button == 0) {
+            for (DropdownPanel panel : panels) {
+                if (panel.isVisible()) {
+                    panel.onGlobalMouseClicked(mx, my, button);
+                }
+            }
+        }
+
         if (button == 0 && searchField.focusIfContains(mx, my, getSearchX(), getSearchY(), getSearchWidth(), getSearchHeight())) {
+            react(ReisaDropdownCompanion.Action.TYPING);
             return true;
         } else if (button == 0 && searchField.isFocused()) {
             searchField.blur();
@@ -273,12 +327,16 @@ public class DropdownScreen extends Screen {
         for (int i = panels.size() - 1; i >= 0; i--) {
             DropdownPanel panel = panels.get(i);
             if (!panel.isVisible()) continue;
+            long reactionRevision = reisaCompanion.getReactionRevision();
             if (panel.mouseClicked(mx, my, button)) {
                 if (i < panels.size() - 1) {
                     panels.remove(i);
                     panels.add(panel);
                 }
                 DropdownLayoutState.save(panels);
+                if (reactionRevision == reisaCompanion.getReactionRevision()) {
+                    reactMouseButton(button);
+                }
                 return true;
             }
         }
@@ -287,12 +345,13 @@ public class DropdownScreen extends Screen {
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
-        MouseButtonEvent epsilonEvent = UiCoordinateMapper.toProjectionEvent(event);
+        MouseButtonEvent epsilonEvent = LuminRenderSystem.toEpsilonMouseEvent(event);
         double mx = epsilonEvent.x();
         double my = epsilonEvent.y();
         int button = epsilonEvent.button();
 
         if (popupHost.mouseReleased(epsilonEvent)) {
+            react(ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
 
@@ -300,6 +359,7 @@ public class DropdownScreen extends Screen {
             if (!panel.isVisible()) continue;
             if (panel.mouseReleased(mx, my, button)) {
                 DropdownLayoutState.save(panels);
+                react(ReisaDropdownCompanion.Action.CONFIRM);
                 return true;
             }
         }
@@ -308,37 +368,41 @@ public class DropdownScreen extends Screen {
 
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double mouseX, double mouseY) {
-        MouseButtonEvent epsilonEvent = UiCoordinateMapper.toProjectionEvent(event);
-        double epsilonDeltaX = UiCoordinateMapper.toProjectionX(mouseX);
-        double epsilonDeltaY = UiCoordinateMapper.toProjectionY(mouseY);
-        if (popupHost.mouseDragged(epsilonEvent, epsilonDeltaX, epsilonDeltaY)) {
+        MouseButtonEvent epsilonEvent = LuminRenderSystem.toEpsilonMouseEvent(event);
+        double epsilonMouseX = LuminRenderSystem.toEpsilonMouseX(mouseX);
+        double epsilonMouseY = LuminRenderSystem.toEpsilonMouseY(mouseY);
+        if (popupHost.mouseDragged(epsilonEvent, epsilonMouseX, epsilonMouseY)) {
+            react(ReisaDropdownCompanion.Action.DRAG);
             return true;
         }
         boolean handled = false;
         for (DropdownPanel panel : panels) {
             if (!panel.isVisible()) continue;
-            if (panel.mouseDragged(epsilonEvent.x(), epsilonEvent.y())) {
+            if (panel.mouseDragged(LuminRenderSystem.toEpsilonMouseX(event.x()), LuminRenderSystem.toEpsilonMouseY(event.y()))) {
                 handled = true;
             }
         }
         if (handled) {
             DropdownLayoutState.save(panels);
+            react(ReisaDropdownCompanion.Action.DRAG);
             return true;
         }
-        return super.mouseDragged(epsilonEvent, epsilonDeltaX, epsilonDeltaY);
+        return super.mouseDragged(epsilonEvent, LuminRenderSystem.toEpsilonMouseX(event.x()), LuminRenderSystem.toEpsilonMouseY(event.y()));
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        double epsilonMouseX = UiCoordinateMapper.toProjectionX(mouseX);
-        double epsilonMouseY = UiCoordinateMapper.toProjectionY(mouseY);
+        double epsilonMouseX = LuminRenderSystem.toEpsilonMouseX(mouseX);
+        double epsilonMouseY = LuminRenderSystem.toEpsilonMouseY(mouseY);
         if (popupHost.mouseScrolled(epsilonMouseX, epsilonMouseY, scrollX, scrollY)) {
+            reactScroll(scrollY);
             return true;
         }
         for (int i = panels.size() - 1; i >= 0; i--) {
             DropdownPanel panel = panels.get(i);
             if (!panel.isVisible()) continue;
             if (panel.mouseScrolled(epsilonMouseX, epsilonMouseY, scrollY)) {
+                reactScroll(scrollY);
                 return true;
             }
         }
@@ -348,19 +412,23 @@ public class DropdownScreen extends Screen {
     @Override
     public boolean keyPressed(KeyEvent event) {
         if (popupHost.keyPressed(event)) {
+            react(event.isEscape() ? ReisaDropdownCompanion.Action.CANCEL : ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
         if (event.key() == GLFW.GLFW_KEY_F && InputConstants.isKeyDown(minecraft.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL)) {
             searchField.focus();
+            react(ReisaDropdownCompanion.Action.TYPING);
             return true;
         }
         if (searchField.isFocused()) {
             if (event.isEscape()) {
                 searchField.blur();
+                react(ReisaDropdownCompanion.Action.CANCEL);
                 return true;
             }
             if (searchField.keyPressed(event)) {
                 syncSearchQuery();
+                react(ReisaDropdownCompanion.Action.TYPING);
                 return true;
             }
         }
@@ -371,6 +439,7 @@ public class DropdownScreen extends Screen {
             for (DropdownPanel panel : panels) {
                 if (!panel.isVisible()) continue;
                 if (panel.keyPressed(event.key(), event.scancode(), event.modifiers())) {
+                    react(event.isEscape() ? ReisaDropdownCompanion.Action.CANCEL : ReisaDropdownCompanion.Action.CONFIRM);
                     return true;
                 }
             }
@@ -384,6 +453,7 @@ public class DropdownScreen extends Screen {
         for (DropdownPanel panel : panels) {
             if (!panel.isVisible()) continue;
             if (panel.keyPressed(event.key(), event.scancode(), event.modifiers())) {
+                react(event.isEscape() ? ReisaDropdownCompanion.Action.CANCEL : ReisaDropdownCompanion.Action.CONFIRM);
                 return true;
             }
         }
@@ -393,16 +463,19 @@ public class DropdownScreen extends Screen {
     @Override
     public boolean charTyped(CharacterEvent event) {
         if (popupHost.charTyped(event)) {
+            react(ReisaDropdownCompanion.Action.TYPING);
             return true;
         }
         if (searchField.charTyped(event)) {
             syncSearchQuery();
+            react(ReisaDropdownCompanion.Action.TYPING);
             return true;
         }
         for (DropdownPanel panel : panels) {
             if (!panel.isVisible()) continue;
             String typed = event.codepointAsString();
             if (!typed.isEmpty() && panel.charTyped(typed)) {
+                react(ReisaDropdownCompanion.Action.TYPING);
                 return true;
             }
         }
@@ -426,10 +499,11 @@ public class DropdownScreen extends Screen {
     public void removed() {
         super.removed();
         popupHost.close();
+        searchField.clear();
+        syncSearchQuery();
         searchField.blur();
         IMEFocusHelper.forceDeactivate();
         preeditOverlay = null;
-        releaseScene();
     }
 
     @Override
@@ -454,8 +528,6 @@ public class DropdownScreen extends Screen {
         panels.add(createSubPanel(new FriendDropdownPanel(index++), x, y));
         y += DropdownTheme.PANEL_HEADER_HEIGHT + DropdownTheme.PANEL_GAP;
         panels.add(createSubPanel(new ConfigDropdownPanel(index++), x, y));
-        y += DropdownTheme.PANEL_HEADER_HEIGHT + DropdownTheme.PANEL_GAP;
-        panels.add(createSubPanel(new AddonDropdownPanel(index), x, y));
 
         DropdownLayoutState.load(panels);
     }
@@ -476,6 +548,7 @@ public class DropdownScreen extends Screen {
                 }
             }
             DropdownLayoutState.save(panels);
+            react(ReisaDropdownCompanion.Action.PANEL_CLOSE);
             return;
         }
 
@@ -484,6 +557,9 @@ public class DropdownScreen extends Screen {
                 panel.setVisible(!panel.isVisible());
                 panel.setOpened(false);
                 DropdownLayoutState.save(panels);
+                react(panel.isVisible()
+                        ? ReisaDropdownCompanion.Action.PANEL_OPEN
+                        : ReisaDropdownCompanion.Action.PANEL_CLOSE);
                 return;
             }
         }
@@ -507,19 +583,19 @@ public class DropdownScreen extends Screen {
     }
 
     private float resolveMaxPanelHeight(DropdownPanel panel) {
-        return resolveMaxPanelHeight(panel, UiCoordinateMapper.getProjectionHeight() * 0.72f);
+        return resolveMaxPanelHeight(panel, LuminRenderSystem.getScaledHeight() * 0.72f);
     }
 
     private float resolveMaxPanelHeight(DropdownPanel panel, float screenLimited) {
         return switch (panel.getId()) {
-            case "main", "addon" -> Math.min(screenLimited, 260.0f);
+            case "main" -> Math.min(screenLimited, 260.0f);
             case "friend", "config" -> Math.min(screenLimited, 220.0f);
             default -> Math.min(screenLimited, 350.0f);
         };
     }
 
     private void updatePanelHeightLimits() {
-        float screenLimited = UiCoordinateMapper.getProjectionHeight() * 0.72f;
+        float screenLimited = LuminRenderSystem.getScaledHeight() * 0.72f;
         for (DropdownPanel panel : panels) {
             panel.setMaxPanelHeight(resolveMaxPanelHeight(panel, screenLimited));
         }
@@ -546,11 +622,11 @@ public class DropdownScreen extends Screen {
     }
 
     private float getSearchY() {
-        return UiCoordinateMapper.getProjectionHeight() - DropdownTheme.PANEL_MARGIN_Y - getSearchHeight();
+        return LuminRenderSystem.getScaledHeight() - DropdownTheme.PANEL_MARGIN_Y - getSearchHeight();
     }
 
     private float getSearchWidth() {
-        return Mth.clamp(UiCoordinateMapper.getProjectionWidth() - DropdownTheme.PANEL_MARGIN_X * 2.0f, 140.0f, 200.0f);
+        return Mth.clamp(LuminRenderSystem.getScaledWidth() - DropdownTheme.PANEL_MARGIN_X * 2.0f, 140.0f, 200.0f);
     }
 
     private float getSearchHeight() {
@@ -561,20 +637,47 @@ public class DropdownScreen extends Screen {
         return sessionId;
     }
 
-    public void openRegistryListSettingPopup(RegistryListSetting<?> setting) {
-        UiRect bounds = popupHost.getCenteredBounds(
-                Math.min(360.0f, UiCoordinateMapper.getProjectionWidth() - 28.0f),
-                Math.min(300.0f, UiCoordinateMapper.getProjectionHeight() - 28.0f)
-        );
-        popupHost.open(RegistryListSelectPopup.create(bounds, setting));
+    public void react(ReisaDropdownCompanion.Action action) {
+        if (isReisaCompanionEnabled()) {
+            reisaCompanion.open(sessionId);
+            reisaCompanion.react(action);
+        }
     }
 
+    private boolean isReisaCompanionEnabled() {
+        return ClientSetting.INSTANCE.showReisaInDropdown.getValue() && AssetManager.INSTANCE.isReisaReady();
+    }
+
+    @Override
+    public void openRegistryListSettingPopup(RegistryListSetting<?> setting) {
+        UiRect bounds = popupHost.getCenteredBounds(
+                Math.min(360.0f, LuminRenderSystem.getScaledWidth() - 28.0f),
+                Math.min(300.0f, LuminRenderSystem.getScaledHeight() - 28.0f)
+        );
+        popupHost.open(RegistryListSelectPopup.create(bounds, setting));
+        react(ReisaDropdownCompanion.Action.PANEL_OPEN);
+    }
+
+    @Override
     public void openStringListSettingPopup(StringListSetting setting) {
         UiRect bounds = popupHost.getCenteredBounds(
-                Math.min(300.0f, UiCoordinateMapper.getProjectionWidth() - 28.0f),
-                Math.min(260.0f, UiCoordinateMapper.getProjectionHeight() - 28.0f)
+                Math.min(300.0f, LuminRenderSystem.getScaledWidth() - 28.0f),
+                Math.min(260.0f, LuminRenderSystem.getScaledHeight() - 28.0f)
         );
         popupHost.open(new StringListSelectPopup(bounds, setting, setting::add, setting::remove));
+        react(ReisaDropdownCompanion.Action.PANEL_OPEN);
+    }
+
+    private void reactMouseButton(int button) {
+        react(button == GLFW.GLFW_MOUSE_BUTTON_RIGHT
+                ? ReisaDropdownCompanion.Action.SECONDARY_CLICK
+                : ReisaDropdownCompanion.Action.PRIMARY_CLICK);
+    }
+
+    private void reactScroll(double scrollY) {
+        react(scrollY >= 0.0
+                ? ReisaDropdownCompanion.Action.SCROLL_UP
+                : ReisaDropdownCompanion.Action.SCROLL_DOWN);
     }
 
 }

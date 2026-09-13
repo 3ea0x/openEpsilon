@@ -1,9 +1,7 @@
 package com.github.epsilon.elements.impl;
 
 import com.github.epsilon.elements.HudModule;
-import com.github.epsilon.gui.utils.UiCoordinateMapper;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftBlurRegion2612;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
+import com.github.epsilon.graphics.shaders.BlurShader;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.ColorSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
@@ -11,7 +9,6 @@ import com.github.epsilon.settings.impl.IntSetting;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
 
 import java.awt.*;
 
@@ -25,11 +22,11 @@ public class Inventory extends HudModule {
 
     private final DoubleSetting scale = doubleSetting("Scale", 1.0, 0.5, 2.0, 0.1);
     private final DoubleSetting cornerRadius = doubleSetting("Corner Radius", 3.0, 0.0, 14.0, 0.5);
-    private final ColorSetting backgroundColor = colorSetting("Background Color", new Color(15, 15, 15, 135));
-    private final ColorSetting slotColor = colorSetting("Slot Color", new Color(0, 0, 0, 70));
+    private final ColorSetting backgroundColor = colorSetting("Background Color", new Color(15, 15, 15, 90));
+    private final ColorSetting slotColor = colorSetting("Slot Color", new Color(0, 0, 0, 0));
     private final BoolSetting drawShadow = boolSetting("Drop Shadow", true);
-    private final DoubleSetting shadowBlur = doubleSetting("Shadow Blur", DEFAULT_SHADOW_BLUR, MIN_SHADOW_BLUR, MAX_SHADOW_BLUR, SHADOW_BLUR_STEP, drawShadow::getValue);
-    private final ColorSetting shadowColor = colorSetting("Shadow Color", DEFAULT_SHADOW_COLOR, drawShadow::getValue);
+    private final DoubleSetting shadowBlur = doubleSetting("Shadow Blur", 9.0, 2.0, 32.0, 1.0, drawShadow::getValue);
+    private final ColorSetting shadowColor = colorSetting("Shadow Color", new Color(255, 255, 255, 110), drawShadow::getValue);
     private final BoolSetting backgroundBlur = boolSetting("Background Blur", true);
     private final IntSetting blurStrength = intSetting("Blur Strength", 5, 1, 16, 1);
 
@@ -56,20 +53,19 @@ public class Inventory extends HudModule {
         float totalHeight = padding * 2f + 3 * slotSize + (3 - 1) * gap;
 
         if (backgroundBlur.getValue()) {
-            MinecraftUiRuntime2612.current().applyBlur(MinecraftBlurRegion2612.rounded(
-                    new UiRect(this.x, this.y, totalWidth, totalHeight), radius, blurStrength.getValue()));
+            BlurShader.INSTANCE.render(this.x, this.y, totalWidth, totalHeight, radius, blurStrength.getValue());
         }
 
         if (drawShadow.getValue()) {
-            scope.shadow(this.x, this.y, totalWidth, totalHeight, radius, shadowBlur.getValue().floatValue(), lumin(shadowColor.getValue()));
+            scope.shadow(this.x, this.y, totalWidth, totalHeight, radius, shadowBlur.getValue().floatValue() * scale, shadowColor.getValue());
         }
-        scope.roundRect(this.x, this.y, totalWidth, totalHeight, radius, lumin(backgroundColor.getValue()));
+        scope.roundRect(this.x, this.y, totalWidth, totalHeight, radius, backgroundColor.getValue());
 
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 float slotX = this.x + padding + col * (slotSize + gap);
                 float slotY = this.y + padding + row * (slotSize + gap);
-                scope.roundRect(slotX, slotY, slotSize, slotSize, slotRadius, lumin(slotColor.getValue()));
+                scope.roundRect(slotX, slotY, slotSize, slotSize, slotRadius, slotColor.getValue());
             }
         }
 
@@ -99,12 +95,9 @@ public class Inventory extends HudModule {
     }
 
     private void drawItem(GuiGraphicsExtractor graphics, ItemStack stack, float slotX, float slotY, float scale) {
-        float guiX = (float) UiCoordinateMapper.toMinecraftX(slotX);
-        float guiY = (float) UiCoordinateMapper.toMinecraftY(slotY);
-        float guiScale = (float) UiCoordinateMapper.toMinecraftLength(scale);
         graphics.pose().pushMatrix();
-        graphics.pose().translate(guiX + guiScale, guiY + guiScale);
-        graphics.pose().scale(guiScale, guiScale);
+        graphics.pose().translate(slotX + scale, slotY + scale);
+        graphics.pose().scale(scale, scale);
         graphics.item(stack, 0, 0);
         if (showCount.getValue() && stack.getCount() > 1) {
             graphics.itemDecorations(mc.font, stack, 0, 0, String.valueOf(stack.getCount()));

@@ -2,13 +2,16 @@ package com.github.epsilon.gui.panel.view;
 
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
 import com.github.epsilon.assets.i18n.TranslateComponent;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
 import com.github.epsilon.gui.panel.PanelState;
 import com.github.epsilon.gui.panel.popup.PanelPopupHost;
-import com.github.epsilon.gui.panel.view.settings.*;
+import com.github.epsilon.gui.panel.view.settings.ClientSettingTabView;
+import com.github.epsilon.gui.panel.view.settings.ConfigClientSettingTab;
+import com.github.epsilon.gui.panel.view.settings.FriendClientSettingTab;
+import com.github.epsilon.gui.panel.view.settings.GeneralClientSettingTab;
 import com.github.epsilon.gui.theme.MD3Theme;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
@@ -25,29 +28,27 @@ public class ClientSettingPanel implements AutoCloseable {
     private static final List<TabDefinition> TABS = List.of(
             new TabDefinition(PanelState.ClientSettingTab.GENERAL, EpsilonTranslations.Gui.TAB_GENERAL),
             new TabDefinition(PanelState.ClientSettingTab.FRIEND, EpsilonTranslations.Gui.TAB_FRIEND),
-            new TabDefinition(PanelState.ClientSettingTab.CONFIG, EpsilonTranslations.Gui.TAB_CONFIG),
-            new TabDefinition(PanelState.ClientSettingTab.ADDON, EpsilonTranslations.Gui.TAB_ADDON)
+            new TabDefinition(PanelState.ClientSettingTab.CONFIG, EpsilonTranslations.Gui.TAB_CONFIG)
     );
 
     private static final float TAB_BAR_HEIGHT = 26.0f;
     private static final float TAB_INDICATOR_HEIGHT = 2.5f;
 
     protected final PanelState state;
-    private final UiTextMetrics textRenderer;
+    private final TextRenderer textRenderer;
     private final EnumMap<PanelState.ClientSettingTab, ClientSettingTabView> tabViews = new EnumMap<>(PanelState.ClientSettingTab.class);
     private final EnumMap<PanelState.ClientSettingTab, Animation> tabHoverAnimations = new EnumMap<>(PanelState.ClientSettingTab.class);
     private final Animation tabIndicatorAnimation = new Animation(Easing.EASE_OUT_CUBIC, 200L);
 
     private UiRect bounds;
 
-    public ClientSettingPanel(PanelState state, UiTextMetrics textRenderer, PanelPopupHost popupHost) {
+    public ClientSettingPanel(PanelState state, TextRenderer textRenderer, PanelPopupHost popupHost) {
         this.state = state;
         this.textRenderer = textRenderer;
 
         tabViews.put(PanelState.ClientSettingTab.GENERAL, new GeneralClientSettingTab(state, textRenderer, popupHost));
         tabViews.put(PanelState.ClientSettingTab.FRIEND, new FriendClientSettingTab(state, textRenderer));
         tabViews.put(PanelState.ClientSettingTab.CONFIG, new ConfigClientSettingTab(state, textRenderer, popupHost));
-        tabViews.put(PanelState.ClientSettingTab.ADDON, new AddonClientSettingTab(state, textRenderer, popupHost));
 
         for (PanelState.ClientSettingTab tab : PanelState.ClientSettingTab.values()) {
             Animation animation = new Animation(Easing.EASE_OUT_CUBIC, 120L);
@@ -73,6 +74,10 @@ public class ClientSettingPanel implements AutoCloseable {
         renderBatch.render(tree);
 
         activeTab.render(guiGraphics, renderBatch.view(10), getContentBounds(), effectiveMouseX, effectiveMouseY, partialTick);
+    }
+
+    public void flushContent() {
+        getCurrentTabView().flushContent();
     }
 
     public void markDirty() {
@@ -135,7 +140,7 @@ public class ClientSettingPanel implements AutoCloseable {
         UiRect tabBar = getTabBarRect();
         float segmentWidth = tabBar.width() / TABS.size();
         float labelScale = 0.62f;
-        float textHeight = textRenderer.textHeight(labelScale, null);
+        float textHeight = textRenderer.getHeight(labelScale);
         int activeIndex = getTabIndex(state.getClientSettingTab());
         float indicatorProgress = scope.animate(tabIndicatorAnimation, activeIndex);
 
@@ -154,7 +159,7 @@ public class ClientSettingPanel implements AutoCloseable {
                 }
 
                 String label = tab.component().getTranslatedName();
-                float textWidth = textRenderer.textWidth(label, labelScale, null);
+                float textWidth = textRenderer.getWidth(label, labelScale);
                 float textX = tabBounds.x() + (tabBounds.width() - textWidth) / 2.0f;
                 float textY = (tabBounds.height() - TAB_INDICATOR_HEIGHT - textHeight) / 2.0f;
                 tabs.text(label, textX, textY, labelScale, active ? MD3Theme.PRIMARY : MD3Theme.TEXT_MUTED);
@@ -196,7 +201,6 @@ public class ClientSettingPanel implements AutoCloseable {
             case GENERAL -> 0;
             case FRIEND -> 1;
             case CONFIG -> 2;
-            case ADDON -> 3;
         };
     }
 

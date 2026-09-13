@@ -67,7 +67,7 @@ public class Eagle extends Module {
 
     @EventHandler(priority = EventPriority.LOWEST)
     private void onMoveInput(KeyboardInputEvent event) {
-        if (mc.screen != null) return;
+        if (mc.gui.screen() != null) return;
 
         boolean physicallySneaking = KeybindUtils.isPressed(mc.options.keyShift);
         if (sneakingOnly.getValue() && physicallySneaking && shouldSneak()) {
@@ -87,7 +87,7 @@ public class Eagle extends Module {
         return (!blocksOnly.getValue() || isHoldingBlock()) && mc.player.onGround();
     }
 
-    private boolean isOverEdge() {
+    public boolean isOverEdge() {
         Vec3 predictedMovement = predictMovement();
         Vec3 movement = mc.player.getDeltaMovement().add(predictedMovement.x, 0.0, predictedMovement.z);
         return mc.level.noCollision(mc.player, mc.player.getBoundingBox().move(movement.x, -1.0, movement.z));

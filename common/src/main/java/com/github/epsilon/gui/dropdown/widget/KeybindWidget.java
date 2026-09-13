@@ -1,8 +1,10 @@
 package com.github.epsilon.gui.dropdown.widget;
 
+import com.github.epsilon.gui.dropdown.DropdownScreen;
 import com.github.epsilon.gui.dropdown.DropdownTheme;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.gui.dropdown.ReisaDropdownCompanion;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.gui.theme.MD3Theme;
 import com.github.epsilon.settings.impl.KeybindSetting;
 import com.github.epsilon.utils.client.KeybindUtils;
@@ -31,12 +33,12 @@ public class KeybindWidget extends SettingWidget<KeybindSetting> {
 
     @Override
     public void draw(UiTree.Scope scope, UiTextMetrics textMetrics, int mouseX, int mouseY) {
-        float lineHeight = textMetrics.textHeight(DropdownTheme.SETTING_TEXT_SCALE, null);
+        float lineHeight = textMetrics.textHeight(DropdownTheme.SETTING_TEXT_SCALE);
         float labelTextY = (getHeight() - lineHeight) * 0.5f;
         scope.text(setting.getDisplayName(), DropdownTheme.SETTING_PADDING_X, labelTextY, DropdownTheme.SETTING_TEXT_SCALE, DropdownTheme.settingLabel());
 
         String keyText = listening ? "..." : KeybindUtils.format(setting.getValue());
-        float textW = textMetrics.textWidth(keyText, DropdownTheme.SETTING_TEXT_SCALE, null);
+        float textW = textMetrics.textWidth(keyText, DropdownTheme.SETTING_TEXT_SCALE);
         buttonW = Math.max(DropdownTheme.KEYBIND_WIDTH, textW + 8.0f);
         buttonH = DropdownTheme.KEYBIND_HEIGHT;
         float localButtonX = width - DropdownTheme.SETTING_PADDING_X - buttonW;
@@ -60,12 +62,16 @@ public class KeybindWidget extends SettingWidget<KeybindSetting> {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0 && isHovered(mouseX, mouseY, buttonX, buttonY, buttonW, buttonH)) {
             listening = !listening;
+            DropdownScreen.INSTANCE.react(listening
+                    ? ReisaDropdownCompanion.Action.KEY_BIND
+                    : ReisaDropdownCompanion.Action.CANCEL);
             return true;
         }
 
         if (listening && button != 0) {
             setting.setValue(KeybindUtils.encodeMouseButton(button));
             listening = false;
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
         return false;
@@ -83,6 +89,9 @@ public class KeybindWidget extends SettingWidget<KeybindSetting> {
             setting.setValue(keyCode);
         }
         listening = false;
+        DropdownScreen.INSTANCE.react(keyCode == 256
+                ? ReisaDropdownCompanion.Action.CANCEL
+                : ReisaDropdownCompanion.Action.CONFIRM);
         return true;
     }
 

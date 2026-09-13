@@ -35,11 +35,14 @@ public class MyModule extends Module {
 }
 ```
 
-`Module.setEnabled(true)` 会先订阅事件、发送通知，再调用 `onEnable()`；禁用时先取消订阅、发送通知，再调用 `onDisable()`。
+`Module.setEnabled(true)` 会先订阅事件、发送通知，再调用 `onEnable()`；禁用时先取消订阅、发送通知，
+再调用 `onDisable()`。
 
-`Module.resetCustomState()`、`saveCustomState()`、`loadCustomState(JsonObject)` 用于 Setting 之外的持久化状态。`setDefaultEnabled()` 和 `setDefaultHidden()` 同时影响 reset 行为；普通模块默认 disabled、hidden。
+`Module.resetCustomState()`、`saveCustomState()`、`loadCustomState(JsonObject)` 用于 Setting 之外的持久化
+状态。`setDefaultEnabled()` 和 `setDefaultHidden()` 同时影响 `reset()` 行为；普通模块默认 disabled、hidden。
 
-键位默认值为 `-1`。`Module.BindMode.Toggle` 在按下时切换，`Hold` 在按下时启用、松开时禁用。鼠标键由 `KeybindUtils` 编码。
+键位默认值为 `-1`。`Module.BindMode.Toggle` 在按下时切换，`Hold` 在按下时启用、松开时禁用。鼠标键由
+`KeybindUtils` 编码。
 
 ## Setting DSL
 
@@ -65,11 +68,25 @@ private final IntSetting threshold = intSetting(
 
 相关能力：
 
-- `settingGroup(name)` 按名称忽略大小写复用分组。
-- `.group(group)` 仅指定 GUI 分组，不负责注册 Setting。
-- `.rootSetting()` 表示值由根配置单独持久化；当前 `ClientSetting.showWelcomeScreen` 使用它。
+- `settingGroup(name)` 在顶层按名称忽略大小写复用分组。
+- `SettingGroup.child(name)` 在父分组下按名称忽略大小写复用子分组，可以继续嵌套；子分组只属于创建它的
+  父分组，父子关系决定 GUI 缩进和翻译 key 层级。
+- `.group(group)` 仅指定 GUI 分组（可以是任意层级的子分组），不负责注册 Setting。
+- `.rootSetting()` 表示值由根配置单独持久化；当前 `ClientSetting.showWelcomeScreen`、`WorldTweaks`
+  的雾与时间设置使用它。
 - `.applyWhenRelease()` 表示滑动或编辑结束后再应用昂贵更新。
 - `Setting.isAvailable()` 的语义由 dependency 决定；DSL 默认传入恒真的 dependency。
+
+嵌套分组示例；父分组内直接 Setting 与首次出现的子分组按声明顺序交错渲染：
+
+```java
+private final SettingGroup sgWeapon = settingGroup("Weapon");
+private final SettingGroup sgEnchants = sgWeapon.child("Enchants");
+private final SettingGroup sgSword = sgEnchants.child("Sword");
+
+private final BoolSetting autoSwitch = boolSetting("Auto Switch", true).group(sgWeapon);
+private final IntSetting minLevel = intSetting("Min Level", 1, 1, 5, 1).group(sgSword);
+```
 
 ## Addon
 
@@ -77,13 +94,16 @@ private final IntSetting threshold = intSetting(
 
 - 必须重写 `onSetup()`。
 - 可选重写 `getDisplayName()`、`getDescription()`、`getVersion()`、`getAuthors()`。
-- 在 `onSetup()` 中通过受保护的 `registerModule(module)` 注册 Addon 模块。
+- 在 `onSetup()` 中通过受保护的 `registerModule(module)` 注册 Addon 模块；注册会把模块交给
+  `ModuleManager.registerAddonModule(...)` 并绑定 Addon 的翻译前缀。
 
-`AddonHolder` 按 ID 去重并只执行一次 setup，晚注册对象不会自动初始化。
+`AddonManager` 按 ID 去重并只执行一次 setup，空 ID 和重复 ID 的注册会被忽略并记录警告；晚注册对象不会
+自动初始化。`AddonManager.setupAddons()` 逐个隔离异常，单个 Addon 失败不会阻断其他 Addon。
 
 平台收集方式：
 
 - Fabric 使用自定义 entrypoint key `epsilon:addon`，入口实现 `FabricEpsilonAddonEntrypoint`。
 - NeoForge 通过 `NeoForge.EVENT_BUS` 发布平台 `EpsilonAddonSetupEvent` 收集 Addon。
 
-强制注册、状态恢复和事件包前缀约束见 [`AGENTS.md`](../../AGENTS.md)。
+接入细节见 [Addon 开发](../addon-development.md)。强制注册、状态恢复和事件包前缀约束见
+[`AGENTS.md`](../../AGENTS.md)。

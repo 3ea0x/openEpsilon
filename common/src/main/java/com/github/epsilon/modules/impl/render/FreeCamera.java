@@ -3,11 +3,13 @@ package com.github.epsilon.modules.impl.render;
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.bus.EventPriority;
 import com.github.epsilon.events.impl.*;
-import com.github.epsilon.managers.Managers;
+import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.utils.client.KeybindUtils;
 import com.github.epsilon.utils.player.ChatUtils;
 import com.github.epsilon.utils.rotation.Priority;
@@ -45,6 +47,9 @@ public class FreeCamera extends Module {
     private final BoolSetting rotate = boolSetting("Rotate", false);
     private final BoolSetting staticView = boolSetting("Static", true);
 
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
+
     public final Vector3d pos = new Vector3d();
     public final Vector3d prevPos = new Vector3d();
 
@@ -75,7 +80,7 @@ public class FreeCamera extends Module {
         perspective = mc.options.getCameraType();
         speedValue = speed.getValue();
 
-        Vec3 cameraPos = mc.gameRenderer.getMainCamera().position();
+        Vec3 cameraPos = mc.gameRenderer.mainCamera().position();
         pos.set(cameraPos.x, cameraPos.y, cameraPos.z);
         prevPos.set(pos);
 
@@ -99,14 +104,14 @@ public class FreeCamera extends Module {
         unpress();
 
         if (reloadChunks.getValue()) {
-            mc.levelRenderer.allChanged();
+            mc.levelExtractor.allChanged();
         }
     }
 
     @Override
     protected void onDisable() {
         if (reloadChunks.getValue()) {
-            mc.execute(mc.levelRenderer::allChanged);
+            mc.execute(mc.levelExtractor::allChanged);
         }
 
         mc.options.setCameraType(perspective);
@@ -163,7 +168,7 @@ public class FreeCamera extends Module {
             }
 
             if (rotation != null) {
-                Managers.ROTATION.setRotations(rotation, 180, Priority.Highest);
+                RotationManager.request(rotationType.getValue(), rotation, 180, Priority.Highest);
             }
         }
 
@@ -260,7 +265,7 @@ public class FreeCamera extends Module {
 
     @EventHandler
     private void onMouseScroll(MouseScrollEvent event) {
-        if (speedScrollSensitivity.getValue() > 0 && mc.screen == null) {
+        if (speedScrollSensitivity.getValue() > 0 && mc.gui.screen() == null) {
             speedValue += event.getValue() * 0.25 * (speedScrollSensitivity.getValue() * speedValue);
             if (speedValue < 0.1) speedValue = 0.1;
             event.cancel();

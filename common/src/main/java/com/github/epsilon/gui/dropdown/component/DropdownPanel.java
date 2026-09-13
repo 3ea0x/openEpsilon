@@ -1,7 +1,7 @@
 package com.github.epsilon.gui.dropdown.component;
 
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
 
 public interface DropdownPanel {
 
@@ -27,6 +27,9 @@ public interface DropdownPanel {
     float getPanelHeight();
 
     boolean mouseClicked(double mouseX, double mouseY, int button);
+
+    default void onGlobalMouseClicked(double mouseX, double mouseY, int button) {
+    }
 
     boolean mouseReleased(double mouseX, double mouseY, int button);
 

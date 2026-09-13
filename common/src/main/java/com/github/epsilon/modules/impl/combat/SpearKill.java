@@ -2,10 +2,11 @@ package com.github.epsilon.modules.impl.combat;
 
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.impl.PlayerTickEvent;
-import com.github.epsilon.managers.Managers;
-import com.github.epsilon.managers.impl.target.TargetRequest;
+import com.github.epsilon.managers.target.TargetManager;
+import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.combat.elytra_combat.ElytraCombat;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
 import com.github.epsilon.settings.impl.EnumSetting;
@@ -69,6 +70,9 @@ public class SpearKill extends Module {
 
     @EventHandler
     public void onTick(PlayerTickEvent e) {
+        if (ElytraCombat.INSTANCE.isControllingCombat()) {
+            return;
+        }
         updateTarget();
 
         currentlyCharging = isUsingSpear();
@@ -103,7 +107,7 @@ public class SpearKill extends Module {
 
         if (killtarget == null || autoSwitch.getValue()) {
             double rangeValue = maxRange.getValue();
-            var candidates = Managers.TARGET.acquireTargets(
+            var candidates = TargetManager.INSTANCE.acquireTargets(
                     TargetRequest.of(
                             rangeValue,
                             360.0f,
@@ -111,6 +115,9 @@ public class SpearKill extends Module {
                             mobs.getValue(),
                             animals.getValue(),
                             villagers.getValue(),
+                            false,
+                            false,
+                            false,
                             invisible.getValue(),
                             64
                     )

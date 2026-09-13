@@ -2,12 +2,12 @@ package com.github.epsilon.gui.panel.view.settings;
 
 import com.github.epsilon.Constants;
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
-import com.github.slmpc.lumingraphics.ui.render.UiContentBuffer;
-import com.github.slmpc.lumingraphics.ui.render.UiRenderBatch;
-import com.github.slmpc.lumingraphics.ui.state.UiInvalidationState;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
+import com.github.epsilon.gui.lib.render.UiContentBuffer;
+import com.github.epsilon.gui.lib.render.UiRenderBatch;
+import com.github.epsilon.gui.lib.state.UiInvalidationState;
 import com.github.epsilon.gui.panel.PanelState;
 import com.github.epsilon.gui.panel.popup.ConfirmActionPopup;
 import com.github.epsilon.gui.panel.popup.MessagePopup;
@@ -16,8 +16,8 @@ import com.github.epsilon.gui.panel.utils.ScrollBarDragState;
 import com.github.epsilon.gui.panel.utils.ScrollBarUtils;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.holders.ConfigHolder;
-import com.github.epsilon.holders.TranslateHolder;
+import com.github.epsilon.managers.ConfigManager;
+import com.github.epsilon.managers.TranslationManager;
 import com.github.epsilon.utils.client.ConfigFolderOpener;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
@@ -43,7 +43,8 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
 
     private final PanelState state;
     private final PanelPopupHost popupHost;
-    private final UiTextMetrics textRenderer;
+    private final TextRenderer textRenderer;
+    private final UiContentBuffer contentBuffer = new UiContentBuffer(EpsilonUiTheme.INSTANCE);
     private final UiInvalidationState contentState = new UiInvalidationState();
     private final ScrollBarDragState scrollBarDrag = new ScrollBarDragState();
     private final ClientSettingTextField inputField = new ClientSettingTextField(MAX_INPUT_LENGTH);
@@ -59,7 +60,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
     private long lastContentSignature = Long.MIN_VALUE;
     private float scrollVelocity = 0;
 
-    public ConfigClientSettingTab(PanelState state, UiTextMetrics textRenderer, PanelPopupHost popupHost) {
+    public ConfigClientSettingTab(PanelState state, TextRenderer textRenderer, PanelPopupHost popupHost) {
         this.state = state;
         this.popupHost = popupHost;
         this.textRenderer = textRenderer;
@@ -67,7 +68,6 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
 
     @Override
     public void render(GuiGraphicsExtractor guiGraphics, UiRenderBatch renderBatch, UiRect bounds, int mouseX, int mouseY, float partialTick) {
-        UiContentBuffer contentBuffer = new UiContentBuffer(renderBatch);
         this.bounds = bounds;
 
         if (Math.abs(scrollVelocity) > 0.01f) {
@@ -79,8 +79,8 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
             markDirty();
         }
 
-        List<String> configs = ConfigHolder.INSTANCE.listConfigs();
-        String activeConfig = ConfigHolder.INSTANCE.getActiveConfigName();
+        List<String> configs = ConfigManager.INSTANCE.listConfigs();
+        String activeConfig = ConfigManager.INSTANCE.getActiveConfigName();
         UiRect inputSection = getInputSectionBounds(bounds);
         UiRect listViewport = getListViewport(bounds);
         float contentHeight = configs.size() * (ROW_HEIGHT + MD3Theme.ROW_GAP);
@@ -89,9 +89,10 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
         boolean hasScrollBar = maxScroll > 0.0f;
         float rowWidth = hasScrollBar ? listViewport.width() - ScrollBarUtils.TOTAL_WIDTH : listViewport.width();
         long contentSignature = buildContentSignature(configs, activeConfig);
-        boolean rebuildContent = true;
+        boolean rebuildContent = shouldRebuild(listViewport, mouseX, mouseY, configs, activeConfig, guiGraphics.guiHeight(), contentSignature);
 
         if (rebuildContent) {
+            contentBuffer.clear();
             contentState.beginRebuild();
             rowEntries.clear();
             rowHoverAnimations.keySet().removeIf(name -> !configs.contains(name));
@@ -129,9 +130,9 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
                 if (configs.isEmpty()) {
                     float hintScale = 0.58f;
                     String hint = EpsilonTranslations.Gui.CONFIG_EMPTY.getTranslatedName();
-                    float hintWidth = textRenderer.textWidth(hint, hintScale, null);
+                    float hintWidth = textRenderer.getWidth(hint, hintScale);
                     float hintX = (listViewport.width() - hintWidth) / 2.0f;
-                    float hintY = state.getConfigScroll() + listViewport.height() / 2.0f - textRenderer.textHeight(hintScale, null) / 2.0f;
+                    float hintY = state.getConfigScroll() + listViewport.height() / 2.0f - textRenderer.getHeight(hintScale) / 2.0f;
                     content.text(hint, hintX, hintY, hintScale, MD3Theme.TEXT_MUTED);
                 }
             });
@@ -141,6 +142,11 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
         if (rebuildContent) {
             rememberSnapshot(listViewport, mouseX, mouseY, configs, activeConfig, guiGraphics.guiHeight(), contentSignature);
         }
+    }
+
+    @Override
+    public void flushContent() {
+        contentBuffer.flush();
     }
 
     @Override
@@ -280,7 +286,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
     @Override
     public void onActivated() {
         if (inputField.getText().isBlank()) {
-            inputField.setText(ConfigHolder.INSTANCE.getActiveConfigName());
+            inputField.setText(ConfigManager.INSTANCE.getActiveConfigName());
             inputField.setCursorToEnd();
         }
         markDirty();
@@ -320,8 +326,8 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
                     button.bounds().height() / 2.0f, MD3Theme.lerp(baseColor, hoverColor, hover * 0.35f));
 
             float labelScale = 0.56f;
-            float labelWidth = textRenderer.textWidth(button.label(), labelScale, null);
-            float labelHeight = textRenderer.textHeight(labelScale, null);
+            float labelWidth = textRenderer.getWidth(button.label(), labelScale);
+            float labelHeight = textRenderer.getHeight(labelScale);
             buttonScope.text(button.label(),
                     (button.bounds().width() - labelWidth) / 2.0f,
                     (button.bounds().height() - labelHeight) / 2.0f,
@@ -351,15 +357,15 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
         if (active) {
             String chipText = EpsilonTranslations.Gui.CONFIG_CURRENT.getTranslatedName();
             float chipScale = 0.48f;
-            float chipWidth = textRenderer.textWidth(chipText, chipScale, null) + 10.0f;
+            float chipWidth = textRenderer.getWidth(chipText, chipScale) + 10.0f;
             float chipHeight = 14.0f;
             UiRect localDeleteBounds = deleteBounds.relativeTo(rowBounds);
             float chipX = localDeleteBounds.x() - chipWidth - 6.0f;
             float chipY = (rowBounds.height() - chipHeight) / 2.0f;
             scope.roundRect(chipX, chipY, chipWidth, chipHeight, chipHeight / 2.0f, MD3Theme.PRIMARY);
             scope.text(chipText,
-                    chipX + (chipWidth - textRenderer.textWidth(chipText, chipScale, null)) / 2.0f,
-                    chipY + (chipHeight - textRenderer.textHeight(chipScale, null)) / 2.0f,
+                    chipX + (chipWidth - textRenderer.getWidth(chipText, chipScale)) / 2.0f,
+                    chipY + (chipHeight - textRenderer.getHeight(chipScale)) / 2.0f,
                     chipScale,
                     MD3Theme.ON_PRIMARY);
         }
@@ -371,8 +377,8 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
         float removeScale = 0.50f;
         String removeIcon = "✕";
         scope.text(removeIcon,
-                localDeleteBounds.x() + (localDeleteBounds.width() - textRenderer.textWidth(removeIcon, removeScale, null)) / 2.0f,
-                localDeleteBounds.y() + (localDeleteBounds.height() - textRenderer.textHeight(removeScale, null)) / 2.0f,
+                localDeleteBounds.x() + (localDeleteBounds.width() - textRenderer.getWidth(removeIcon, removeScale)) / 2.0f,
+                localDeleteBounds.y() + (localDeleteBounds.height() - textRenderer.getHeight(removeScale)) / 2.0f,
                 removeScale,
                 MD3Theme.lerp(MD3Theme.TEXT_MUTED, MD3Theme.ERROR, deleteHover));
     }
@@ -394,7 +400,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
             return;
         }
         try {
-            String savedName = ConfigHolder.INSTANCE.saveAsConfig(targetName);
+            String savedName = ConfigManager.INSTANCE.saveAsConfig(targetName);
             inputField.setText(savedName);
             inputField.setCursorToEnd();
             state.setConfigScroll(0.0f);
@@ -410,7 +416,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
             return;
         }
         try {
-            String newName = ConfigHolder.INSTANCE.newDefaultConfig(targetName);
+            String newName = ConfigManager.INSTANCE.newDefaultConfig(targetName);
             inputField.setText(newName);
             inputField.setCursorToEnd();
             state.setConfigScroll(0.0f);
@@ -422,7 +428,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
 
     private void tryReload() {
         try {
-            ConfigHolder.INSTANCE.reloadOrThrow();
+            ConfigManager.INSTANCE.reloadOrThrow();
             markDirty();
         } catch (Exception exception) {
             Constants.LOGGER.error("重载配置失败", exception);
@@ -432,7 +438,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
 
     private void tryExport() {
         try {
-            Path exported = ConfigHolder.INSTANCE.exportActiveConfigToZip(inputField.getText());
+            Path exported = ConfigManager.INSTANCE.exportActiveConfigToZip(inputField.getText());
             openExportSuccessPopup(exported);
         } catch (Exception exception) {
             Constants.LOGGER.error("导出配置失败", exception);
@@ -446,7 +452,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
             return;
         }
         try {
-            String importedName = ConfigHolder.INSTANCE.importConfigFromZip(zipPath);
+            String importedName = ConfigManager.INSTANCE.importConfigFromZip(zipPath);
             inputField.setText(importedName);
             inputField.setCursorToEnd();
             state.setConfigScroll(0.0f);
@@ -465,11 +471,11 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
     }
 
     private void trySwitchConfig(String configName) {
-        if (Objects.equals(configName, ConfigHolder.INSTANCE.getActiveConfigName())) {
+        if (Objects.equals(configName, ConfigManager.INSTANCE.getActiveConfigName())) {
             return;
         }
         try {
-            ConfigHolder.INSTANCE.switchConfig(configName);
+            ConfigManager.INSTANCE.switchConfig(configName);
             inputField.setText(configName);
             inputField.setCursorToEnd();
         } catch (Exception exception) {
@@ -480,12 +486,12 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
 
     private void tryDeleteConfig(String configName) {
         try {
-            if (!ConfigHolder.INSTANCE.deleteConfig(configName)) {
+            if (!ConfigManager.INSTANCE.deleteConfig(configName)) {
                 openErrorPopup(EpsilonTranslations.Gui.CONFIG_ERROR_DELETE::getTranslatedName, EpsilonTranslations.Gui.CONFIG_ERROR_DELETE_LAST.getTranslatedName());
                 return;
             }
             if (Objects.equals(inputField.getText().trim(), configName)) {
-                inputField.setText(ConfigHolder.INSTANCE.getActiveConfigName());
+                inputField.setText(ConfigManager.INSTANCE.getActiveConfigName());
                 inputField.setCursorToEnd();
             }
         } catch (Exception exception) {
@@ -575,7 +581,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
 
     private long buildContentSignature(List<String> configs, String activeConfig) {
         long signature = 17L;
-        signature = signature * 31L + TranslateHolder.INSTANCE.getRevision();
+        signature = signature * 31L + TranslationManager.INSTANCE.getRevision();
         signature = signature * 31L + Float.floatToIntBits(state.getConfigScroll());
         signature = signature * 31L + activeConfig.hashCode();
         for (String config : configs) {
@@ -636,17 +642,17 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
         if (value == null || value.isEmpty()) {
             return "";
         }
-        if (textRenderer.textWidth(value, scale, null) <= width) {
+        if (textRenderer.getWidth(value, scale) <= width) {
             return value;
         }
         String ellipsis = "...";
-        float ellipsisWidth = textRenderer.textWidth(ellipsis, scale, null);
+        float ellipsisWidth = textRenderer.getWidth(ellipsis, scale);
         if (ellipsisWidth >= width) {
             return ellipsis;
         }
         for (int length = value.length() - 1; length >= 0; length--) {
             String candidate = value.substring(0, length) + ellipsis;
-            if (textRenderer.textWidth(candidate, scale, null) <= width) {
+            if (textRenderer.getWidth(candidate, scale) <= width) {
                 return candidate;
             }
         }
@@ -655,6 +661,7 @@ public class ConfigClientSettingTab implements ClientSettingTabView {
 
     @Override
     public void close() {
+        contentBuffer.close();
         markDirty();
     }
 

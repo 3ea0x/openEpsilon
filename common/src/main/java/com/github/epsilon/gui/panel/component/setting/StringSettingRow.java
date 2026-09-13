@@ -1,14 +1,11 @@
 package com.github.epsilon.gui.panel.component.setting;
 
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.mc.v2612.runtime.MinecraftUiRuntime2612;
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.control.SelectionRange;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.gui.panel.component.SettingRow;
 import com.github.epsilon.gui.panel.utils.IMEFocusHelper;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.settings.impl.StringSetting;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -27,7 +24,7 @@ public class StringSettingRow extends SettingRow<StringSetting> {
     private static final float FIELD_WIDTH = 120.0f;
     private static final int MAX_LENGTH = 256;
 
-    private UiTextMetrics textMetrics;
+    private TextRenderer textMetrics;
     private boolean focused;
     private String inputBuffer;
     private int cursorIndex;
@@ -38,10 +35,10 @@ public class StringSettingRow extends SettingRow<StringSetting> {
     }
 
     @Override
-    public void buildUi(UiTree.Scope scope, GuiGraphicsExtractor guiGraphics, UiTextMetrics textRenderer, UiRect bounds, float hoverProgress, int mouseX, int mouseY, float partialTick) {
+    public void buildUi(UiTree.Scope scope, GuiGraphicsExtractor guiGraphics, TextRenderer textRenderer, UiRect bounds, float hoverProgress, int mouseX, int mouseY, float partialTick) {
         this.textMetrics = textRenderer;
         float labelScale = 0.68f;
-        float labelY = (bounds.height() - textRenderer.textHeight(labelScale, null)) / 2.0f;
+        float labelY = (bounds.height() - textRenderer.getHeight(labelScale)) / 2.0f;
         scope.roundRect(0.0f, 0.0f, bounds.width(), bounds.height(), MD3Theme.CARD_RADIUS, MD3Theme.rowSurface(hoverProgress));
         scope.text(setting.getDisplayName(), MD3Theme.ROW_CONTENT_INSET, labelY, labelScale, MD3Theme.TEXT_PRIMARY);
 
@@ -51,26 +48,24 @@ public class StringSettingRow extends SettingRow<StringSetting> {
 
         String displaySource = focused ? getDisplayBuffer() : normalize(setting.getValue());
         DisplaySlice slice = buildDisplaySlice(displaySource, fieldBounds, focused);
-        SelectionRange selection = null;
+        UiTree.SelectionRange selection = null;
         if (focused && hasSelection()) {
             int selectionStart = Math.max(slice.start(), getSelectionStart());
             int selectionEnd = Math.min(slice.end(), getSelectionEnd());
             if (selectionEnd > selectionStart) {
-                selection = new SelectionRange(selectionStart - slice.start(), selectionEnd - slice.start());
+                selection = new UiTree.SelectionRange(selectionStart - slice.start(), selectionEnd - slice.start());
             }
         }
         scope.input(fieldBounds.relativeTo(bounds), focused, fieldHover,
-                0.0f, EpsilonUiTheme.lumin(new Color(0, 0, 0, 0)), 0.0f,
-                slice.textX() - fieldBounds.x(), slice.text(), FIELD_SCALE,
-                EpsilonUiTheme.lumin(MD3Theme.filledFieldContent(focused)),
-                selection, selection == null ? null : EpsilonUiTheme.lumin(MD3Theme.withAlpha(MD3Theme.filledFieldIndicator(focused, fieldHover), 90)),
-                focused ? slice.caretIndex() : null,
-                focused ? EpsilonUiTheme.lumin(MD3Theme.filledFieldCaret(focused)) : null,
+                0.0f, new Color(0, 0, 0, 0), 0.0f,
+                slice.textX() - fieldBounds.x(), slice.text(), FIELD_SCALE, MD3Theme.filledFieldContent(focused),
+                selection, selection == null ? null : MD3Theme.withAlpha(MD3Theme.filledFieldIndicator(focused, fieldHover), 90),
+                focused ? slice.caretIndex() : null, focused ? MD3Theme.filledFieldCaret(focused) : null,
                 null, 0.0f, null);
         if (focused) {
-            float caretX = slice.textX() + textRenderer.textWidth(slice.text().substring(0, Math.min(slice.caretIndex(), slice.text().length())), FIELD_SCALE, null);
+            float caretX = slice.textX() + textRenderer.getWidth(slice.text().substring(0, Math.min(slice.caretIndex(), slice.text().length())), FIELD_SCALE);
             caretX = Math.min(caretX, fieldBounds.right() - 5.0f);
-            float textY = fieldBounds.y() + (fieldBounds.height() - textRenderer.textHeight(FIELD_SCALE, null)) / 2.0f;
+            float textY = fieldBounds.y() + (fieldBounds.height() - textRenderer.getHeight(FIELD_SCALE)) / 2.0f;
             IMEFocusHelper.updateCursorPos(caretX, textY);
         }
     }
@@ -211,9 +206,9 @@ public class StringSettingRow extends SettingRow<StringSetting> {
     private int getCursorIndex(double mouseX, UiRect fieldBounds) {
         String text = getDisplayBuffer();
         DisplaySlice slice = buildDisplaySlice(text, fieldBounds, true);
-        UiTextMetrics metrics = textMetrics();
+        TextRenderer metrics = textMetrics();
         for (int i = 0; i <= slice.text().length(); i++) {
-            float width = metrics.textWidth(slice.text().substring(0, i), FIELD_SCALE, null);
+            float width = metrics.getWidth(slice.text().substring(0, i), FIELD_SCALE);
             if (mouseX <= slice.textX() + width) {
                 return slice.start() + i;
             }
@@ -233,9 +228,9 @@ public class StringSettingRow extends SettingRow<StringSetting> {
         int safeCursor = Math.clamp(cursorIndex, 0, safeValue.length());
         int start = 0;
         int end = safeValue.length();
-        UiTextMetrics metrics = textMetrics();
+        TextRenderer metrics = textMetrics();
 
-        if (metrics.textWidth(safeValue, FIELD_SCALE, null) <= availableWidth) {
+        if (metrics.getWidth(safeValue, FIELD_SCALE) <= availableWidth) {
             return new DisplaySlice(safeValue, fieldBounds.x() + horizontalInset, safeCursor, 0, safeValue.length());
         }
 
@@ -245,7 +240,7 @@ public class StringSettingRow extends SettingRow<StringSetting> {
         while (low <= high) {
             int mid = (low + high) / 2;
             String beforeCaret = safeValue.substring(mid, safeCursor);
-            if (metrics.textWidth(beforeCaret, FIELD_SCALE, null) <= availableWidth - 2.0f) {
+            if (metrics.getWidth(beforeCaret, FIELD_SCALE) <= availableWidth - 2.0f) {
                 bestStart = mid;
                 high = mid - 1;
             } else {
@@ -260,7 +255,7 @@ public class StringSettingRow extends SettingRow<StringSetting> {
         while (low <= high) {
             int mid = (low + high) / 2;
             String candidate = safeValue.substring(start, mid);
-            if (metrics.textWidth(candidate, FIELD_SCALE, null) <= availableWidth) {
+            if (metrics.getWidth(candidate, FIELD_SCALE) <= availableWidth) {
                 bestEnd = mid;
                 low = mid + 1;
             } else {
@@ -273,12 +268,12 @@ public class StringSettingRow extends SettingRow<StringSetting> {
     }
 
     private String fitWithEllipsis(String value, float availableWidth) {
-        UiTextMetrics metrics = textMetrics();
-        if (metrics.textWidth(value, FIELD_SCALE, null) <= availableWidth) {
+        TextRenderer metrics = textMetrics();
+        if (metrics.getWidth(value, FIELD_SCALE) <= availableWidth) {
             return value;
         }
         String ellipsis = "...";
-        float ellipsisWidth = metrics.textWidth(ellipsis, FIELD_SCALE, null);
+        float ellipsisWidth = metrics.getWidth(ellipsis, FIELD_SCALE);
         if (ellipsisWidth >= availableWidth) {
             return "";
         }
@@ -287,7 +282,7 @@ public class StringSettingRow extends SettingRow<StringSetting> {
         while (low < high) {
             int mid = (low + high + 1) / 2;
             String candidate = value.substring(0, mid) + ellipsis;
-            if (metrics.textWidth(candidate, FIELD_SCALE, null) <= availableWidth) {
+            if (metrics.getWidth(candidate, FIELD_SCALE) <= availableWidth) {
                 low = mid;
             } else {
                 high = mid - 1;
@@ -428,8 +423,8 @@ public class StringSettingRow extends SettingRow<StringSetting> {
         return InputConstants.isKeyDown(mc.getWindow(), 341) || InputConstants.isKeyDown(mc.getWindow(), 345);
     }
 
-    private UiTextMetrics textMetrics() {
-        return textMetrics == null ? MinecraftUiRuntime2612.current().textMetrics() : textMetrics;
+    private TextRenderer textMetrics() {
+        return textMetrics == null ? FALLBACK_TEXT_METRICS : textMetrics;
     }
 
     private record DisplaySlice(String text, float textX, int caretIndex, int start, int end) {

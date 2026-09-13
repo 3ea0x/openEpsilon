@@ -2,10 +2,13 @@ package com.github.epsilon.modules.impl.combat;
 
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.impl.PlayerTickEvent;
-import com.github.epsilon.managers.Managers;
-import com.github.epsilon.managers.impl.target.TargetRequest;
+import com.github.epsilon.managers.rotation.RotationManager;
+import com.github.epsilon.managers.target.TargetManager;
+import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
+import com.github.epsilon.modules.impl.combat.elytra_combat.ElytraCombat;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
 import com.github.epsilon.settings.impl.EnumSetting;
@@ -55,6 +58,8 @@ public class MaceAura extends Module {
     private final BoolSetting animals = boolSetting("Animals", false);
     private final BoolSetting mobs = boolSetting("Mobs", false);
     private final BoolSetting villagers = boolSetting("Villagers", false);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     public LivingEntity target;
     private final TimerUtils attackTimer = new TimerUtils();
@@ -72,13 +77,19 @@ public class MaceAura extends Module {
 
     @EventHandler
     private void onTick(PlayerTickEvent.Pre event) {
-        target = Managers.TARGET.acquirePrimary(TargetRequest.of(
+        if (ElytraCombat.INSTANCE.isControllingCombat()) {
+            return;
+        }
+        target = TargetManager.INSTANCE.acquirePrimary(TargetRequest.of(
                 range.getValue(),
                 360.0f,
                 players.getValue(),
                 mobs.getValue(),
                 animals.getValue(),
                 villagers.getValue(),
+                false,
+                false,
+                false,
                 true,
                 64
         ));
@@ -87,7 +98,7 @@ public class MaceAura extends Module {
             return;
         }
 
-        Managers.ROTATION.setRotations(RotationUtils.getRotationsToEntity(target), 180, Priority.Medium);
+        RotationManager.request(rotationType.getValue(), RotationUtils.getRotationsToEntity(target), 180, Priority.Medium);
 
         if (!isReadyToAttack()) return;
 
@@ -95,7 +106,7 @@ public class MaceAura extends Module {
     }
 
     private boolean isReadyToAttack() {
-        HitResult hitResult = Managers.ROTATION.getHitResult();
+        HitResult hitResult = RotationManager.INSTANCE.getHitResult();
         if (hitResult == null || hitResult.getType() != HitResult.Type.ENTITY) {
             return false;
         }

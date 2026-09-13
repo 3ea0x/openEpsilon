@@ -1,12 +1,12 @@
 package com.github.epsilon.gui.panel.utils;
 
-import com.github.slmpc.lumingraphics.ui.geometry.UiRect;
-import com.github.slmpc.lumingraphics.ui.control.UiScrollBar;
+import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.control.UiScrollBar;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 
 public class ScrollBarDragState {
 
-    private final UiScrollBar scrollBar = new UiScrollBar(EpsilonUiTheme.lumin(), System::currentTimeMillis);
+    private final UiScrollBar scrollBar = new UiScrollBar(EpsilonUiTheme.INSTANCE);
 
     public boolean isDragging() {
         return scrollBar.isDragging();

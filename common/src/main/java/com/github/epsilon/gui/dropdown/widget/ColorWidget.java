@@ -1,10 +1,11 @@
 package com.github.epsilon.gui.dropdown.widget;
 
+import com.github.epsilon.gui.dropdown.DropdownScreen;
 import com.github.epsilon.gui.dropdown.DropdownTheme;
-import com.github.slmpc.lumingraphics.ui.text.UiTextMetrics;
-import com.github.slmpc.lumingraphics.ui.tree.UiTree;
+import com.github.epsilon.gui.dropdown.ReisaDropdownCompanion;
+import com.github.epsilon.gui.lib.UiTextMetrics;
+import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.gui.theme.MD3Theme;
-import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.settings.impl.ColorSetting;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
@@ -66,7 +67,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
         float t = openAnim.getValue();
 
         scope.text(setting.getDisplayName(), DropdownTheme.SETTING_PADDING_X,
-                (DropdownTheme.SETTING_HEIGHT - textMetrics.textHeight(DropdownTheme.SETTING_TEXT_SCALE, null)) * 0.5f,
+                (DropdownTheme.SETTING_HEIGHT - textMetrics.textHeight(DropdownTheme.SETTING_TEXT_SCALE)) * 0.5f,
                 DropdownTheme.SETTING_TEXT_SCALE, DropdownTheme.settingLabel());
 
         float previewX = width - DropdownTheme.SETTING_PADDING_X - DropdownTheme.COLOR_PREVIEW_SIZE;
@@ -96,6 +97,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
         drawSliderPicker(scope, gradX + gradW * hsb[0], hueY, hueH);
 
         if (pickingSB) {
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.COLOR_PICK);
             float newSat = Mth.clamp((mouseX - absoluteX(gradX)) / gradW, 0.0f, 1.0f);
             float newBri = 1.0f - Mth.clamp((mouseY - absoluteY(gradY)) / (PICKER_HEIGHT * t), 0.0f, 1.0f);
             Color newColor = Color.getHSBColor(hsb[0], newSat, newBri);
@@ -104,6 +106,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
         }
 
         if (pickingHue) {
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.COLOR_PICK);
             float newHue = Mth.clamp((mouseX - absoluteX(gradX)) / gradW, 0.0f, 1.0f);
             Color newColor = Color.getHSBColor(newHue, hsb[1], hsb[2]);
             newColor = new Color(newColor.getRed(), newColor.getGreen(), newColor.getBlue(), color.getAlpha());
@@ -111,6 +114,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
         }
 
         if (pickingChannel != null) {
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.COLOR_PICK);
             updateChannelFromMouse(pickingChannel, mouseX);
         }
 
@@ -127,12 +131,8 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
 
     private void drawSaturationBrightnessPalette(UiTree.Scope scope, float localX, float localY, float width, float height, Color hueColor) {
         scope.rect(localX - 1.0f, localY - 1.0f, width + 2.0f, height + 2.0f, new Color(255, 255, 255, 45));
-        scope.rectGradient(localX, localY, width, height,
-                EpsilonUiTheme.lumin(Color.WHITE), EpsilonUiTheme.lumin(Color.WHITE),
-                EpsilonUiTheme.lumin(hueColor), EpsilonUiTheme.lumin(hueColor));
-        scope.rectGradient(localX, localY, width, height,
-                EpsilonUiTheme.lumin(new Color(0, 0, 0, 0)), EpsilonUiTheme.lumin(Color.BLACK),
-                EpsilonUiTheme.lumin(Color.BLACK), EpsilonUiTheme.lumin(new Color(0, 0, 0, 0)));
+        scope.rectGradient(localX, localY, width, height, Color.WHITE, Color.WHITE, hueColor, hueColor);
+        scope.rectGradient(localX, localY, width, height, new Color(0, 0, 0, 0), Color.BLACK, Color.BLACK, new Color(0, 0, 0, 0));
     }
 
     private void drawSliderPicker(UiTree.Scope scope, float centerX, float localY, float height) {
@@ -154,7 +154,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
 
     private void drawChannelRow(UiTree.Scope scope, UiTextMetrics textMetrics, int mouseX, int mouseY, Channel channel, float rowY, float alphaProgress) {
         int value = getChannelValue(channel);
-        float textY = rowY + (CHANNEL_ROW_HEIGHT - textMetrics.textHeight(CHANNEL_TEXT_SCALE, null)) * 0.5f;
+        float textY = rowY + (CHANNEL_ROW_HEIGHT - textMetrics.textHeight(CHANNEL_TEXT_SCALE)) * 0.5f;
         Color textColor = MD3Theme.withAlpha(DropdownTheme.settingLabel(), (int) (DropdownTheme.settingLabel().getAlpha() * alphaProgress));
         scope.text(channel.label, DropdownTheme.SETTING_PADDING_X, textY, CHANNEL_TEXT_SCALE, textColor);
 
@@ -187,9 +187,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
             case BLUE -> new Color(current.getRed(), current.getGreen(), 255);
             case ALPHA -> new Color(current.getRed(), current.getGreen(), current.getBlue(), 255);
         };
-        scope.roundRectHorizontalGradient(trackX, trackY, trackW, trackH, trackH * 0.5f,
-                EpsilonUiTheme.lumin(MD3Theme.withAlpha(start, (int) (start.getAlpha() * alphaProgress))),
-                EpsilonUiTheme.lumin(MD3Theme.withAlpha(end, (int) (end.getAlpha() * alphaProgress))));
+        scope.roundRectHorizontalGradient(trackX, trackY, trackW, trackH, trackH * 0.5f, MD3Theme.withAlpha(start, (int) (start.getAlpha() * alphaProgress)), MD3Theme.withAlpha(end, (int) (end.getAlpha() * alphaProgress)));
     }
 
     @Override
@@ -202,6 +200,9 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
                 blurFields();
             }
             opened = !opened;
+            DropdownScreen.INSTANCE.react(opened
+                    ? ReisaDropdownCompanion.Action.COLOR_PICK
+                    : ReisaDropdownCompanion.Action.PANEL_CLOSE);
             return true;
         }
 
@@ -224,6 +225,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
                 DropdownTextField field = getField(channel);
                 field.setText(Integer.toString(getChannelValue(channel)));
                 field.focusIfContainsCentered(mouseX, mouseY, getFieldX(), fieldY, CHANNEL_BOX_WIDTH, CHANNEL_BOX_HEIGHT);
+                DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.TYPING);
                 return true;
             }
         }
@@ -234,10 +236,12 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
 
         if (isHovered(mouseX, mouseY, gradX, gradY, gradW, gradH)) {
             pickingSB = true;
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.COLOR_PICK);
             return true;
         }
         if (isHovered(mouseX, mouseY, gradX, hueY, gradW, hueH)) {
             pickingHue = true;
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.COLOR_PICK);
             return true;
         }
         for (Channel channel : getChannels()) {
@@ -247,6 +251,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
             if (isHovered(mouseX, mouseY, trackX, trackY - 3.0f, trackW, CHANNEL_TRACK_HEIGHT + 6.0f)) {
                 pickingChannel = channel;
                 updateChannelFromMouse(channel, mouseX);
+                DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.COLOR_PICK);
                 return true;
             }
         }
@@ -260,6 +265,7 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
             pickingSB = false;
             pickingHue = false;
             pickingChannel = null;
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
         return false;
@@ -272,12 +278,14 @@ public class ColorWidget extends SettingWidget<ColorSetting> {
         if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
             commitFocusedInput();
             focused.blur();
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             clearPendingColor();
             syncFieldsFromColor(true);
             focused.blur();
+            DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CANCEL);
             return true;
         }
         if (focused.keyPressed(keyCode)) {

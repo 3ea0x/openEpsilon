@@ -7,21 +7,20 @@ val modId = project.property("mod_id").toString()
 
 dependencies {
     minecraft(libs.minecraft)
-    implementation(libs.lumin.graphics.mc.fabric.v2612) {
-        isTransitive = false
-    }
-    include(libs.lumin.graphics.mc.fabric.v2612) {
-        isTransitive = false
-    }
-    compileOnly(libs.lumin.graphics.mc.bridge.contract) {
-        isTransitive = false
-    }
     implementation(libs.fabric.loader)
     implementation(libs.fabric.api)
-    implementation(libs.luaj.jse)
-    include(libs.luaj.jse)
     compileOnly(libs.sodium.fabric)
-    compileOnly(libs.jsr305)
+    compileOnly(libs.iris.fabric)
+    implementation(include("org.bytedeco:javacpp:1.5.10")!!)
+    implementation(include("org.bytedeco:javacv:1.5.10")!!)
+    implementation(include("org.bytedeco:ffmpeg:6.1.1-1.5.10")!!)
+    // JavaCPP 的 JNI 桥按平台随 jar 分发：视频能力需要 jnijavacpp 才能加载下载得到的 FFmpeg 原生库。
+    runtimeOnly(include("org.bytedeco:javacpp:1.5.10:windows-x86_64")!!)
+    runtimeOnly(include("org.bytedeco:javacpp:1.5.10:macosx-arm64")!!)
+    // FFmpeg 原生库不再随 jar 分发，改为首次使用时下载到 ~/.epsilon/assets/ffmpeg/natives。
+    // 开发环境仍保留在运行时类路径，便于本地调试。
+    runtimeOnly("org.bytedeco:ffmpeg:6.1.1-1.5.10:windows-x86_64")
+    runtimeOnly("org.bytedeco:ffmpeg:6.1.1-1.5.10:macosx-arm64")
 }
 
 loom {
@@ -39,14 +38,14 @@ loom {
     }
 }
 
-tasks.register("remapJar") {
-    group = "build"
-    description = "Builds the final Fabric archive; Mojang mappings require no separate remap pass."
-    dependsOn(tasks.named("jar"))
-}
-
 val loaderAttribute = Attribute.of("io.github.mcgradleconventions.loader", String::class.java)
-listOf("apiElements", "runtimeElements", "sourcesElements", "includeInternal", "modCompileClasspath").forEach { variant ->
+listOf(
+    "apiElements",
+    "runtimeElements",
+    "sourcesElements",
+    "includeInternal",
+    "modCompileClasspath"
+).forEach { variant ->
     configurations.named(variant) {
         attributes {
             attribute(loaderAttribute, "fabric")

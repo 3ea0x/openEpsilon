@@ -1,6 +1,7 @@
 package com.github.epsilon.utils.combat;
 
 import com.github.epsilon.utils.player.EnchantmentUtils;
+import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.effect.MobEffects;
@@ -11,6 +12,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -44,10 +46,10 @@ public class DamageUtils {
     /**
      * 估算末影水晶爆炸对目标造成的最终伤害。
      *
-     * @param target 目标实体
+     * @param target     目标实体
      * @param crystalPos 末影水晶爆炸中心
-     * @param targetPos 目标预测位置；为 null 时使用实体当前位置
-     * @param mode 护甲附魔计算模式
+     * @param targetPos  目标预测位置；为 null 时使用实体当前位置
+     * @param mode       护甲附魔计算模式
      * @return 应用全部减免后的估算伤害，最小为 0
      */
     public static float crystalDamage(LivingEntity target, Vec3 crystalPos, Vec3 targetPos, ArmorEnchantmentMode mode) {
@@ -57,9 +59,9 @@ public class DamageUtils {
     /**
      * 估算重生锚爆炸对目标造成的最终伤害。
      *
-     * @param target 目标实体
+     * @param target    目标实体
      * @param anchorPos 重生锚爆炸中心
-     * @param mode 护甲附魔计算模式
+     * @param mode      护甲附魔计算模式
      * @return 应用全部减免后的估算伤害，最小为 0
      */
     public static float anchorDamage(LivingEntity target, Vec3 anchorPos, ArmorEnchantmentMode mode) {
@@ -69,11 +71,11 @@ public class DamageUtils {
     /**
      * 估算指定爆炸对目标造成的最终伤害。
      *
-     * @param target 目标实体
+     * @param target       目标实体
      * @param explosionPos 爆炸中心
-     * @param radius 爆炸或特效半径
-     * @param targetPos 目标预测位置；为 null 时使用实体当前位置
-     * @param mode 护甲附魔计算模式
+     * @param radius       爆炸或特效半径
+     * @param targetPos    目标预测位置；为 null 时使用实体当前位置
+     * @param mode         护甲附魔计算模式
      * @return 应用全部减免后的估算伤害，最小为 0
      */
     public static float explosionDamage(LivingEntity target, Vec3 explosionPos, float radius, Vec3 targetPos, ArmorEnchantmentMode mode) {
@@ -105,9 +107,9 @@ public class DamageUtils {
     /**
      * 计算尚未应用护甲等减免的原始爆炸伤害。
      *
-     * @param target 目标实体
+     * @param target       目标实体
      * @param explosionPos 爆炸中心
-     * @param radius 爆炸或特效半径
+     * @param radius       爆炸或特效半径
      * @return 未应用减免的估算伤害，最小为 0
      */
     public static float rawExplosionDamage(LivingEntity target, Vec3 explosionPos, float radius) {
@@ -139,7 +141,7 @@ public class DamageUtils {
      * 计算爆炸中心对目标包围盒的无遮挡采样比例。
      *
      * @param center 爆炸中心
-     * @param bb 用于采样的实体包围盒
+     * @param bb     用于采样的实体包围盒
      * @param entity 实体
      * @return 范围为 0 到 1 的无遮挡比例
      */
@@ -284,7 +286,7 @@ public class DamageUtils {
      * 估算末影水晶爆炸对本地玩家造成的最终伤害。
      *
      * @param crystalPos 末影水晶爆炸中心
-     * @param mode 护甲附魔计算模式
+     * @param mode       护甲附魔计算模式
      * @return 本地玩家预计受到的伤害，最小为 0
      */
     public static float selfCrystalDamage(Vec3 crystalPos, ArmorEnchantmentMode mode) {
@@ -295,8 +297,8 @@ public class DamageUtils {
      * 估算末影水晶爆炸对本地玩家造成的最终伤害。
      *
      * @param crystalPos 末影水晶爆炸中心
-     * @param selfPos 本地玩家预测位置；为 null 时使用当前位置
-     * @param mode 护甲附魔计算模式
+     * @param selfPos    本地玩家预测位置；为 null 时使用当前位置
+     * @param mode       护甲附魔计算模式
      * @return 本地玩家预计受到的伤害，最小为 0
      */
     public static float selfCrystalDamage(Vec3 crystalPos, Vec3 selfPos, ArmorEnchantmentMode mode) {
@@ -308,7 +310,7 @@ public class DamageUtils {
      * 根据预测位置构造实体的受限包围盒。
      *
      * @param entity 实体
-     * @param pos 目标位置
+     * @param pos    目标位置
      * @return 以预测位置为中心构造的实体包围盒
      */
     public static AABB getPredictedBoundingBox(LivingEntity entity, Vec3 pos) {
@@ -326,10 +328,55 @@ public class DamageUtils {
     private DamageUtils() {
     }
 
+    public static boolean breakCrosshairCrystal() {
+        if (mc.level == null || mc.player == null || mc.getCameraEntity() == null) return false;
+
+        Vec3 eye = mc.player.getEyePosition();
+        Vec3 look = mc.player.getLookAngle();
+        Vec3 end = eye.add(look.scale(4.0));
+
+        BlockPos placePos = null;
+        for (double d = 0.1; d <= 4.0; d += 0.1) {
+            Vec3 point = eye.add(look.scale(d));
+            BlockPos pos = BlockPos.containing(point);
+            BlockState state = mc.level.getBlockState(pos);
+            if (state.isAir() || state.canBeReplaced()) {
+                placePos = pos;
+                break;
+            }
+        }
+
+        if (placePos == null) return false;
+
+        net.minecraft.world.entity.boss.enderdragon.EndCrystal target = null;
+        double bestDistSq = Double.MAX_VALUE;
+        AABB searchBox = new AABB(eye, end).inflate(0.5);
+        for (net.minecraft.world.entity.boss.enderdragon.EndCrystal crystal : mc.level.getEntitiesOfClass(net.minecraft.world.entity.boss.enderdragon.EndCrystal.class, searchBox)) {
+            if (!crystal.isAlive()) continue;
+            Vec3 toCrystal = crystal.position().subtract(eye);
+            double projection = toCrystal.dot(look);
+            if (projection < 0 || projection > 4.0) continue;
+            Vec3 closest = eye.add(look.scale(projection));
+            if (closest.distanceToSqr(crystal.position()) > 1.5 * 1.5) continue;
+            double distSq = eye.distanceToSqr(crystal.position());
+            if (distSq < bestDistSq) {
+                bestDistSq = distSq;
+                target = crystal;
+            }
+        }
+
+        if (target != null) {
+            mc.gameMode.attack(mc.player, target);
+            mc.player.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            return true;
+        }
+        return false;
+    }
+
     public enum ArmorEnchantmentMode {
         None,
-        PPPP,   // Protection 4 x4
-        PPBP,   // Protection 4 x2 + Blast Protection 4 x1 + Protection 4 x1
+        PPPP,
+        PPBP,
     }
-}
 
+}

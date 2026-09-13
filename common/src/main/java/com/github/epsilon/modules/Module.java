@@ -1,8 +1,9 @@
 package com.github.epsilon.modules;
 
+import com.github.epsilon.assets.i18n.EpsilonLanguageManager;
 import com.github.epsilon.assets.i18n.TranslateComponent;
 import com.github.epsilon.events.bus.EventBus;
-import com.github.epsilon.managers.Managers;
+import com.github.epsilon.managers.NotificationManager;
 import com.github.epsilon.settings.Setting;
 import com.github.epsilon.settings.SettingGroup;
 import com.github.epsilon.settings.SettingHost;
@@ -14,11 +15,7 @@ import java.util.List;
 
 public class Module implements SettingHost {
 
-    private final String moduleId;
-
     private final String name;
-
-    private String addonId;
 
     private final Category category;
 
@@ -47,17 +44,6 @@ public class Module implements SettingHost {
     public TranslateComponent translateComponent;
 
     public Module(String name, Category category) {
-        this(name, name, category);
-    }
-
-    public Module(String moduleId, String name, Category category) {
-        if (moduleId == null || moduleId.isBlank()) {
-            throw new IllegalArgumentException("moduleId 不能为空");
-        }
-        if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("name 不能为空");
-        }
-        this.moduleId = moduleId;
         this.name = name;
         this.category = category;
         mc = Minecraft.getInstance();
@@ -66,27 +52,22 @@ public class Module implements SettingHost {
     public void initI18n(TranslateComponent moduleComponent) {
         this.translateComponent = moduleComponent;
         for (SettingGroup group : settingGroups) {
-            group.initTranslateComponent(moduleComponent.createChild(group.getName().toLowerCase()));
+            initGroupI18n(moduleComponent, group);
         }
         for (Setting<?> setting : settings) {
             setting.initTranslateComponent(moduleComponent.createChild(setting.getName().toLowerCase()));
         }
     }
 
-    public void setAddonId(String addonId) {
-        this.addonId = addonId;
-    }
-
-    public String getAddonId() {
-        return addonId;
-    }
-
-    public String getModuleId() {
-        return moduleId;
-    }
-
-    public ModuleKey getModuleKey() {
-        return addonId == null ? null : new ModuleKey(addonId, moduleId);
+    /**
+     * 递归初始化分组翻译组件；子分组 key 逐级拼接在父分组 key 之下。
+     */
+    private static void initGroupI18n(TranslateComponent parentComponent, SettingGroup group) {
+        TranslateComponent component = parentComponent.createChild(group.getName().toLowerCase());
+        group.initTranslateComponent(component);
+        for (SettingGroup child : group.getChildren()) {
+            initGroupI18n(component, child);
+        }
     }
 
     protected boolean nullCheck() {
@@ -113,13 +94,13 @@ public class Module implements SettingHost {
             if (enabled) {
                 EventBus.INSTANCE.subscribe(this);
                 if (!nullCheck()) {
-                    Managers.NOTIFICATION.moduleState(this.getTranslatedName(), getNotificationHash(), true);
+                    NotificationManager.INSTANCE.moduleState(this.getTranslatedName(), getNotificationHash(), true);
                 }
                 onEnable();
             } else {
                 EventBus.INSTANCE.unsubscribe(this);
                 if (!nullCheck()) {
-                    Managers.NOTIFICATION.moduleState(this.getTranslatedName(), getNotificationHash(), false);
+                    NotificationManager.INSTANCE.moduleState(this.getTranslatedName(), getNotificationHash(), false);
                 }
                 onDisable();
             }
@@ -131,19 +112,13 @@ public class Module implements SettingHost {
         setEnabled(defaultEnabled);
     }
 
-    /** 仅记录默认启用状态，供需要延迟完成运行时绑定的 Module 使用。 */
-    protected void setDefaultEnabledValue(boolean defaultEnabled) {
-        this.defaultEnabled = defaultEnabled;
-    }
-
     protected void setDefaultHidden(boolean defaultHidden) {
         this.defaultHidden = defaultHidden;
         this.hidden = defaultHidden;
     }
 
     private int getNotificationHash() {
-        String owner = addonId != null ? addonId : "epsilon";
-        return (owner + ":" + name).hashCode();
+        return ("epsilon:" + name).hashCode();
     }
 
     public void reset() {
@@ -205,6 +180,25 @@ public class Module implements SettingHost {
 
     public String getTranslatedName() {
         return translateComponent != null ? translateComponent.getTranslatedName() : name;
+    }
+
+    /**
+     * 模块功能描述，用于 GUI 悬停提示。
+     * <p>
+     * 文案取自模块 i18n owner 下的 {@code description} 键，例如
+     * {@code epsilon.modules.kill aura.description}；未填写或留空时返回 {@code null}，不显示提示。
+     * 该键可选，随 {@link EpsilonLanguageManager} 一起在资源重载时刷新，缺失时回退 en_us。
+     */
+    public String getDescription() {
+        if (translateComponent == null) {
+            return null;
+        }
+        String key = translateComponent.getFullKey() + ".description";
+        if (!EpsilonLanguageManager.INSTANCE.has(key)) {
+            return null;
+        }
+        String description = EpsilonLanguageManager.INSTANCE.getOrDefault(key);
+        return description == null || description.isBlank() ? null : description;
     }
 
     public String getInfo() {
