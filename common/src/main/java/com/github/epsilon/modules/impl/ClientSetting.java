@@ -37,6 +37,9 @@ public class ClientSetting extends Module {
 
     private ClientSetting() {
         super("Client Setting", null);
+        // 这里不能初始化 RotationManager：本类可能在 Minecraft 构造期间（ClientBrandRetriever）就被加载，
+        // 那时 EventBus 的 lambda factory 尚未注册，订阅会抛 "No registered lambda listener"。
+        // 托管旋转实例统一在 EpsilonCommon.init() 中、事件总线就绪之后创建。
     }
 
     public enum Teams {
@@ -102,9 +105,21 @@ public class ClientSetting extends Module {
         Custom
     }
 
+    /**
+     * 转头模式的作用范围。
+     * <p>
+     * {@link #Global} 下所有模块共用 {@link #rotationMode}，忽略模块自身的
+     * {@code Rotation Type}；{@link #Custom} 下按每个模块的设置分别选择 Silent / Snap / 不转头。
+     */
+    public enum RotationScope {
+        Global,
+        Custom
+    }
+
     private final SettingGroup sgGeneral = settingGroup("General");
     private final SettingGroup sgTeams = settingGroup("Teams");
     private final SettingGroup sgAntiCheat = settingGroup("Anti Cheat");
+    private final SettingGroup sgRotation = sgAntiCheat.child("Rotation");
     private final SettingGroup sgAppearance = settingGroup("Appearance");
     private final SettingGroup sgReisa = sgAppearance.child("Uzawa Reisa");
     private final SettingGroup sgNotification = settingGroup("Notification");
@@ -153,7 +168,16 @@ public class ClientSetting extends Module {
     public final EnumSetting<Teams> teams = enumSetting("Teams", Teams.None).group(sgTeams);
 
     // Anti Cheat
-    public final EnumSetting<RotationManager.RotationMode> rotationMode = enumSetting("Rotation Mode", RotationManager.RotationMode.SILENT, RotationManager::switchRotationManager).group(sgAntiCheat);
+    public final EnumSetting<RotationScope> rotationScope = enumSetting("Rotation Scope", RotationScope.Global, scope -> {
+        // 限定名引用：rotationMode 声明在本字段之后，简单名会触发非法前向引用
+        if (scope == RotationScope.Global) RotationManager.switchRotationManager(ClientSetting.INSTANCE.rotationMode.getValue());
+    }).group(sgRotation);
+
+    public final EnumSetting<RotationManager.RotationMode> rotationMode = enumSetting("Rotation Mode", RotationManager.RotationMode.SILENT,
+            this::isGlobalRotationScope,
+            mode -> {
+                if (isGlobalRotationScope()) RotationManager.switchRotationManager(mode);
+            }).group(sgRotation);
 
     public final BoolSetting modifyCrosshair = boolSetting("Modify Crosshair", true).group(sgAntiCheat);
 
@@ -163,6 +187,14 @@ public class ClientSetting extends Module {
     public final EnumSetting<ThemeMode> themeMode = enumSetting("Theme Mode", ThemeMode.Dark, _ -> MD3Theme.syncFromSettings()).group(sgAppearance);
 
     public final EnumSetting<ThemePreset> themePreset = enumSetting("Theme Preset", ThemePreset.TonalSpot, _ -> MD3Theme.syncFromSettings()).group(sgAppearance);
+
+    public final BoolSetting themeGlass = boolSetting("Liquid Glass", true).group(sgAppearance);
+
+    /** 液态玻璃整体不透明度倍率，按比例缩放所有玻璃表面的 alpha；仅依赖 Liquid Glass 开关，与 Theme Mode / Theme Preset 无关。 */
+    public final DoubleSetting themeGlassOpacity = doubleSetting("Glass Opacity", 1.0, 0.0, 1.0, 0.05, themeGlass::getValue).group(sgAppearance);
+
+    /** GUI 窗口背景不透明度倍率，作用于 Panel 主面板与分区、Dropdown 各面板的背景层；与 Liquid Glass 开关正交，关闭玻璃后仍可调节。 */
+    public final DoubleSetting guiBackgroundOpacity = doubleSetting("Background Opacity", 1.0, 0.0, 1.0, 0.05).group(sgAppearance);
 
     public final EnumSetting<IconMode> customIcon = enumSetting("Custom Icon", IconMode.Epsilon, _ -> {
         try {
@@ -252,6 +284,30 @@ public class ClientSetting extends Module {
 
     public double getScale() {
         return renderScale.getValue();
+    }
+
+    /**
+     * 当前是否使用全局转头模式；为 {@code true} 时所有模块都忽略自身的 {@code Rotation Type}。
+     */
+    public boolean isGlobalRotationScope() {
+        return rotationScope.is(RotationScope.Global);
+    }
+
+    /**
+     * 当前是否使用自定义转头模式；模块级 {@code Rotation Type} 设置以此为可见条件。
+     */
+    public boolean isCustomRotationScope() {
+        return rotationScope.is(RotationScope.Custom);
+    }
+
+    /**
+     * 把模块级转头方式解析为实际生效的托管旋转模式。
+     *
+     * @param option 模块自身的转头方式
+     * @return 实际模式；自定义范围下 {@link RotationManager.RotationOption#None} 返回 {@code null}，表示不请求托管旋转
+     */
+    public RotationManager.RotationMode resolveRotationMode(RotationManager.RotationOption option) {
+        return isGlobalRotationScope() ? rotationMode.getValue() : option.toMode();
     }
 
     public void syncFontGlyphUploadBudget() {

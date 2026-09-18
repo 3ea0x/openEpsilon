@@ -6,10 +6,12 @@ import com.github.epsilon.events.impl.PlayerTickEvent;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.combat.KillAura;
 import com.github.epsilon.modules.impl.movement.Scaffold;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.utils.player.PlayerUtils;
 import com.github.epsilon.utils.rotation.Priority;
@@ -60,6 +62,8 @@ public class ChestAura extends Module {
     private final DoubleSetting cancelRange = doubleSetting("Cancel Range", 0.0, 0.0, 20.0, 0.1);
     private final IntSetting delay = intSetting("Delay", 400, 0, 1000, 1);
     private final DoubleSetting turnSpeed = doubleSetting("Turn Speed", 180.0, 0.0, 180.0, 0.1);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
     private final BoolSetting disableInHypixelLobby = boolSetting("Disable In Hypixel Lobby", false);
 
     private final TimerUtils timer = new TimerUtils();
@@ -110,7 +114,7 @@ public class ChestAura extends Module {
         if (target == null) return;
 
         Rot2f targetRotation = RotationUtils.calculate(mc.player.getEyePosition(), target.hit().getLocation());
-        RotationManager.INSTANCE.setRotations(
+        RotationManager.request(rotationType.getValue(),
                 targetRotation,
                 turnSpeed.getValue(),
                 rotation -> hitsTarget(rotation, target),

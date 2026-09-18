@@ -16,6 +16,18 @@ public class SilentRotationManager extends RotationManager {
 
     private Rot2f useItemRotation;
 
+    public SilentRotationManager() {
+        super(RotationMode.SILENT);
+    }
+
+    /**
+     * 切走时丢弃物品使用包的旋转记录，避免它被下一个模式的移动包继续沿用。
+     */
+    @Override
+    protected void onModeSwitchAway() {
+        useItemRotation = null;
+    }
+
     @Override
     protected void handleSendPosition(SendPositionEvent event) {
         // Item use is sent before LocalPlayer ticks; keep both packets on the same server rotation.

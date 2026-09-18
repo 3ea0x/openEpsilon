@@ -2,7 +2,9 @@ package com.github.epsilon.gui.panel;
 
 import com.github.epsilon.graphics.LuminRenderSystem;
 import com.github.epsilon.graphics.renderers.TextRenderer;
+import com.github.epsilon.graphics.text.ttf.TtfFontLoader;
 import com.github.epsilon.gui.lib.UiRect;
+import com.github.epsilon.gui.lib.UiTextMetrics;
 import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.gui.lib.scene.UiLayer;
 import com.github.epsilon.gui.lib.scene.UiScene;
@@ -15,6 +17,7 @@ import com.github.epsilon.gui.panel.view.ModuleDetailPanel;
 import com.github.epsilon.gui.panel.view.ModuleListPanel;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
+import com.github.epsilon.gui.utils.ModuleTooltip;
 import com.github.epsilon.managers.TranslationManager;
 import com.github.epsilon.modules.impl.ClientSetting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -39,6 +42,7 @@ public class PanelScreen extends Screen {
     private final PanelState state = new PanelState();
     private final PanelDirtyState dirtyState = new PanelDirtyState();
     private final TextRenderer textRenderer = TextRenderer.create();
+    private final UiTextMetrics uiTextMetrics = new PanelTextMetrics();
     private final UiScene scene = new UiScene(EpsilonUiTheme.INSTANCE);
     private final PanelPopupHost popupHost = new PanelPopupHost();
     private final PanelInputRouter inputRouter = new PanelInputRouter();
@@ -141,6 +145,7 @@ public class PanelScreen extends Screen {
         drawChrome(layout);
         int epsilonMouseX = LuminRenderSystem.toEpsilonMouseX(mouseX);
         int epsilonMouseY = LuminRenderSystem.toEpsilonMouseY(mouseY);
+        ModuleTooltip.clear();
         boolean popupActive = popupHost.getActivePopup() != null;
         int panelMouseX = popupActive ? Integer.MIN_VALUE : epsilonMouseX;
         int panelMouseY = popupActive ? Integer.MIN_VALUE : epsilonMouseY;
@@ -156,6 +161,10 @@ public class PanelScreen extends Screen {
             moduleListPanel.render(guiGraphics, scene.batch(UiLayer.CONTENT, 0), layout.modules(), panelMouseX, panelMouseY, partialTick);
             moduleDetailPanel.render(guiGraphics, scene.batch(UiLayer.CONTENT, 20), layout.detail(), panelMouseX, panelMouseY, partialTick);
         }
+
+        // 悬停描述提示提交到最高层，本帧请求在此消费后随 scene.flush() 一起绘制。
+        scene.submit(UiLayer.OVERLAY, UiTree.build(scope -> ModuleTooltip.render(scope, uiTextMetrics,
+                LuminRenderSystem.getScaledWidth(), LuminRenderSystem.getScaledHeight())));
 
         scene.flush();
         flushQueuedContentBuffers();
@@ -173,26 +182,31 @@ public class PanelScreen extends Screen {
     }
 
     private void drawChrome(PanelLayout.Layout layout) {
+        UiRect panel = layout.panel();
+        // 面板与分区都是玻璃表面：先对同一区域模糊背景，再记录玻璃着色与边缘高光。
+        // 两者构成 GUI 窗口背景层，统一按 Background Opacity 缩放；其上的内容层不受影响。
+        MD3Theme.submitGlassBlur(panel.x(), panel.y(), panel.width(), panel.height(), MD3Theme.PANEL_RADIUS);
         UiTree tree = UiTree.build(scope -> {
-            scope.pushAbsolute(layout.panel(), panel -> {
-                panel.shadow(0.0f, 0.0f, layout.panel().width(), layout.panel().height(),
+            scope.pushAbsolute(panel, chrome -> {
+                chrome.shadow(0.0f, 0.0f, panel.width(), panel.height(),
                         MD3Theme.PANEL_RADIUS, MD3Theme.PANEL_SHADOW_BLUR,
                         MD3Theme.withAlpha(MD3Theme.SHADOW, MD3Theme.PANEL_SHADOW_ALPHA));
-                panel.roundRect(0.0f, 0.0f, layout.panel().width(), layout.panel().height(),
-                        MD3Theme.PANEL_RADIUS, MD3Theme.SURFACE);
+                chrome.roundRect(0.0f, 0.0f, panel.width(), panel.height(),
+                        MD3Theme.PANEL_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassPane(MD3Theme.SURFACE)));
+                MD3Theme.glassRim(chrome, 0.0f, 0.0f, panel.width(), panel.height(), MD3Theme.PANEL_RADIUS);
             });
             scope.pushAbsolute(layout.rail(), rail -> rail.roundRect(0.0f, 0.0f, layout.rail().width(), layout.rail().height(),
-                    MD3Theme.SECTION_RADIUS, MD3Theme.SURFACE_DIM));
+                    MD3Theme.SECTION_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassSection(MD3Theme.SURFACE_DIM))));
             if (state.isClientSettingMode()) {
                 float csW = layout.detail().right() - layout.modules().x();
                 float csH = layout.modules().height();
                 scope.pushAbsolute(layout.modules().x(), layout.modules().y(), clientSettings ->
-                        clientSettings.roundRect(0.0f, 0.0f, csW, csH, MD3Theme.SECTION_RADIUS, MD3Theme.SURFACE_DIM));
+                        clientSettings.roundRect(0.0f, 0.0f, csW, csH, MD3Theme.SECTION_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassSection(MD3Theme.SURFACE_DIM))));
             } else {
                 scope.pushAbsolute(layout.modules(), modules -> modules.roundRect(0.0f, 0.0f, layout.modules().width(), layout.modules().height(),
-                        MD3Theme.SECTION_RADIUS, MD3Theme.SURFACE_DIM));
+                        MD3Theme.SECTION_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassSection(MD3Theme.SURFACE_DIM))));
                 scope.pushAbsolute(layout.detail(), detail -> detail.roundRect(0.0f, 0.0f, layout.detail().width(), layout.detail().height(),
-                        MD3Theme.SECTION_RADIUS, MD3Theme.SURFACE_DIM));
+                        MD3Theme.SECTION_RADIUS, MD3Theme.applyBackgroundOpacity(MD3Theme.glassSection(MD3Theme.SURFACE_DIM))));
             }
         });
         scene.submit(UiLayer.CHROME, -20, tree);
@@ -367,6 +381,30 @@ public class PanelScreen extends Screen {
      */
     public LuminRenderSystem.LuminRenderTarget getRenderTarget() {
         return renderTarget;
+    }
+
+    /** 把面板使用的 {@link TextRenderer} 适配成布局代码要求的文本度量接口。 */
+    private final class PanelTextMetrics implements UiTextMetrics {
+
+        @Override
+        public float textWidth(String text, float scale) {
+            return textRenderer.getWidth(text, scale);
+        }
+
+        @Override
+        public float textWidth(String text, float scale, TtfFontLoader fontLoader) {
+            return textRenderer.getWidth(text, scale, fontLoader);
+        }
+
+        @Override
+        public float textHeight(float scale) {
+            return textRenderer.getHeight(scale);
+        }
+
+        @Override
+        public float textHeight(float scale, TtfFontLoader fontLoader) {
+            return textRenderer.getHeight(scale, fontLoader);
+        }
     }
 
 }

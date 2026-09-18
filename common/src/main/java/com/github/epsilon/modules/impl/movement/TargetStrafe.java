@@ -10,9 +10,11 @@ import com.github.epsilon.managers.FriendManager;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.combat.KillAura;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.utils.rotation.Priority;
 import com.github.epsilon.utils.rotation.Rot2f;
@@ -41,6 +43,9 @@ public class TargetStrafe extends Module {
     private final BoolSetting requireJump = boolSetting("Require Jump", true);
     private final BoolSetting speedOnly = boolSetting("Speed Only", true);
     private final BoolSetting drawRadius = boolSetting("Draw Radius", true);
+
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     private LivingEntity target;
     private float targetYaw = Float.NaN;
@@ -105,7 +110,7 @@ public class TargetStrafe extends Module {
 
         targetYaw = Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(deltaZ, deltaX)) - 90.0f);
 
-        RotationManager.INSTANCE.setRotations(new Rot2f(targetYaw, RotationManager.INSTANCE.getPitch()), 180.0f, Priority.Low);
+        RotationManager.request(rotationType.getValue(), new Rot2f(targetYaw, RotationManager.INSTANCE.getPitch()), 180.0f, Priority.Low);
     }
 
     @EventHandler

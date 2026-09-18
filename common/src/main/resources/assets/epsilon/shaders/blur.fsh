@@ -75,6 +75,12 @@ void main() {
         alpha = min(1.0, alpha + 1.0 - smoothstep(-delta, delta, distance));
     }
 
-    if (alpha < 0.001) discard;
-    fragColor = vec4(blur().rgb, alpha);
+    // SegmentInfo.y = surface opacity of the blur layer, supplied by BlurShader (1.0 for every
+    // caller except the GUI, which drives it from Client Setting's Background Opacity).
+    // The blurred patch is the panel background itself, so it has to fade out with that setting;
+    // otherwise a fully opaque blurred patch survives and the background stays dark and smeared.
+    // Skip the 81 taps entirely once it is invisible.
+    float surfaceAlpha = alpha * SegmentInfo.y;
+    if (surfaceAlpha < 0.001) discard;
+    fragColor = vec4(blur().rgb, surfaceAlpha);
 }

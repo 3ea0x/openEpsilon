@@ -10,6 +10,7 @@ import com.github.epsilon.gui.dropdown.widget.*;
 import com.github.epsilon.gui.lib.UiTextMetrics;
 import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.gui.theme.MD3Theme;
+import com.github.epsilon.gui.utils.ModuleTooltip;
 import com.github.epsilon.modules.Module;
 import com.github.epsilon.settings.Setting;
 import com.github.epsilon.settings.impl.*;
@@ -87,6 +88,9 @@ public class ModuleButton extends Component {
         toggleAnim.run(module.isEnabled() ? 1.0f : 0.0f);
         boolean headerHovered = isHovered(mouseX, mouseY, x, y, width, DropdownTheme.MODULE_HEIGHT);
         hoverAnim.run(headerHovered ? 1.0f : 0.0f);
+        if (headerHovered) {
+            ModuleTooltip.request(module, mouseX, mouseY);
+        }
 
         float hover = hoverAnim.getValue();
         float toggle = toggleAnim.getValue();

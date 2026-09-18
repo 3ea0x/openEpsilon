@@ -14,6 +14,7 @@ import com.github.epsilon.managers.NotificationManager;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.impl.*;
 import com.github.epsilon.utils.math.MathUtils;
 import com.github.epsilon.utils.player.FallingPlayer;
@@ -172,6 +173,8 @@ public class Scaffold extends Module {
     private final EnumSetting<RotationMode> rotationMode = enumSetting("Rotation Mode", RotationMode.Static);
     private final EnumSetting<RaytraceMode> raytrace = enumSetting("Raytrace Mode", RaytraceMode.Normal);
     private final IntSetting rotationSpeed = intSetting("Rotation Speed", 127, 10, 180, 10, () -> !rotationMode.is(RotationMode.Hypixel));
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
     private final IntSetting rotationSpeed2 = intSetting("Rotation Speed 2", 36, 10, 180, 10, () -> rotationMode.is(RotationMode.Heypixel));
     private final IntSetting rotationBackSpeed = intSetting("Rotation Back Speed", 180, 10, 180, 10, () -> mode.is(Mode.TellyBridge));
     private final IntSetting tellyTicks = intSetting("Telly Ticks", 1, 0, 6, 1, () -> mode.is(Mode.TellyBridge));
@@ -253,7 +256,7 @@ public class Scaffold extends Module {
         if (strength >= 1.5) {
             NotificationManager.INSTANCE.warning(this.getTranslatedName(), EpsilonTranslations.Notifications.SCAFFOLD_FLYING_WARNING.getTranslatedName(), this.hashCode());
         }
-        if ((!reachable || strength >= 1.5) && rotateCount <= 8 && getBlockCount() >= 1 && canUseBlockResult()) {
+        if (RotationManager.isRotationManaged(rotationType.getValue()) && (!reachable || strength >= 1.5) && rotateCount <= 8 && getBlockCount() >= 1 && canUseBlockResult()) {
             emergencyPlacementActive = true;
             event.cancel();
 
@@ -362,7 +365,7 @@ public class Scaffold extends Module {
 
     private void handleTelly() {
         if (mc.player.onGround() && (strafeInput != 0 || forwardInput != 0)) {
-            RotationManager.INSTANCE.setRotations(new Rot2f(rawInputYaw, rotation == null ? mc.player.getXRot() : rotation.getPitch()), rotationBackSpeed.getValue());
+            RotationManager.request(rotationType.getValue(), new Rot2f(rawInputYaw, rotation == null ? mc.player.getXRot() : rotation.getPitch()), rotationBackSpeed.getValue());
             return;
         }
 
@@ -375,7 +378,7 @@ public class Scaffold extends Module {
             speed = airTicks <= 1 ? rotationSpeed.getValue() : rotationSpeed2.getValue();
         }
 
-        RotationManager.INSTANCE.setRotations(rotation, speed);
+        RotationManager.request(rotationType.getValue(), rotation, speed);
 
         if (airTicks > tellyTicks.getValue()) {
             place();
@@ -385,7 +388,7 @@ public class Scaffold extends Module {
     private void handleNormal() {
         if (Eagle.INSTANCE.isOverEdge() || !snap.getValue() | !mc.player.onGround()) {
             rotation = getRotation(blockPos, direction);
-            RotationManager.INSTANCE.setRotations(rotation, rotationSpeed.getValue());
+            RotationManager.request(rotationType.getValue(), rotation, rotationSpeed.getValue());
         }
         place();
     }

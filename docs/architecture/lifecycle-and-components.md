@@ -49,8 +49,9 @@ Minecraft.<init> TAIL
 | `AssetManager` | 视频/玲纱/FFmpeg 资源的按需下载、缓存与纹理注册 |
 
 `RotationManager` 是抽象基类，实现为 `SilentRotationManager` 与 `SnapRotationManager`。它的
-`INSTANCE` 是可变静态字段，`RotationManager.switchRotationManager(mode)` 会通过 `copyStateFrom()`
-替换实例，调用方必须每次重新读取。
+`INSTANCE` 是可变静态字段，`RotationManager.switchRotationManager(mode)` 会按模式复用缓存实例、
+通过 `copyStateFrom()` 迁移状态并替换实例，调用方必须每次重新读取。模块级转头方式只能通过
+`RotationManager.request(...)` 提交，由 `ClientSetting.rotationScope` 决定用全局模式还是模块自身设置。
 
 其余运行时管理器包括 `TargetManager`、`HealthManager`、`ExtrapolationManager`、`FriendManager`、
 `NotificationManager`、`SoundManager`、`ClientboundPacketManager` 与 `ServerboundPacketManager`。

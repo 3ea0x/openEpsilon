@@ -11,6 +11,7 @@ import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.movement.NoSlowdown;
 import com.github.epsilon.modules.impl.movement.Scaffold;
 import com.github.epsilon.modules.impl.movement.Velocity;
@@ -95,6 +96,8 @@ public class KillAura extends Module {
     private final IntSetting fov = intSetting("FOV", 360, 10, 360, 1);
     private final IntSetting rotationSpeed = intSetting("Rotation Speed", 180, 10, 180, 10);
     private final EnumSetting<Priority> rotationPriority = enumSetting("Rotation Priority", Priority.High);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
     private final IntSetting cps = intSetting("CPS", 12, 1, 20, 1, () -> mode.is(Mode.OnePointEight));
 
     private final BoolSetting players = boolSetting("Players", true);
@@ -226,7 +229,7 @@ public class KillAura extends Module {
 
         Rot2f calculate = RotationUtils.calculate(target, true, aimRange.getValue());
         if (RaytraceUtils.raytrace(calculate, aimRange.getValue()).getType() == HitResult.Type.BLOCK) return;
-        RotationManager.INSTANCE.setRotations(calculate, rotationSpeed.getValue(), rotation -> RaytraceUtils.raytrace(rotation, 3.0f) instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() == target, rotationPriority.getValue());
+        RotationManager.request(rotationType.getValue(), calculate, rotationSpeed.getValue(), rotation -> RaytraceUtils.raytrace(rotation, 3.0f) instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() == target, rotationPriority.getValue());
 
         HitResult hitResult = RotationManager.INSTANCE.getHitResult();
         if (hitSelect.getValue() && hitResult instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() instanceof Player player && !AntiBot.INSTANCE.isBot(player) && !TargetManager.INSTANCE.isSameTeam(player) && velocity.attackQueue <= 0) {

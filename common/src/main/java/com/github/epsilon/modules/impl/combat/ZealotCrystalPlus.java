@@ -14,6 +14,7 @@ import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.SettingGroup;
 import com.github.epsilon.settings.impl.*;
 import com.github.epsilon.utils.combat.DamageUtils;
@@ -90,6 +91,8 @@ public class ZealotCrystalPlus extends Module {
     private final DoubleSetting yawSpeed = doubleSetting("Yaw Speed", 45.0, 5.0, 180.0, 5.0).group(sgGeneral);
     private final DoubleSetting placeRotationRange = doubleSetting("Place Rotation Range", 0.0, 0.0, 180.0, 5.0).group(sgGeneral);
     private final DoubleSetting breakRotationRange = doubleSetting("Break Rotation Range", 90.0, 0.0, 180.0, 5.0).group(sgGeneral);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope).group(sgGeneral);
     private final BoolSetting eatingPause = boolSetting("Eating Pause", false).group(sgGeneral);
     private final IntSetting updateDelay = intSetting("Update Delay", 5, 0, 250, 1).group(sgGeneral);
     private final IntSetting globalDelay = intSetting("Global Delay", 1_000_000, 1_000, 10_000_000, 1_000).group(sgGeneral);
@@ -993,7 +996,7 @@ public class ZealotCrystalPlus extends Module {
         InteractionHand finalHand = hand;
         BlockHitResult hitResult = new BlockHitResult(placeInfo.hitVec(), placeInfo.side(), placeInfo.blockPos(), false);
 
-        RotationManager.INSTANCE.setRotations(placeInfo.rotation(), getRotationSpeed(), null, Priority.High);
+        RotationManager.request(rotationType.getValue(), placeInfo.rotation(), getRotationSpeed(), null, Priority.High);
 
         InteractionResult result = mc.gameMode.useItemOn(mc.player, finalHand, hitResult);
         if (result.consumesAction()) {
@@ -1034,7 +1037,7 @@ public class ZealotCrystalPlus extends Module {
             }
         }
 
-        RotationManager.INSTANCE.setRotations(RotationUtils.calculate(breakPlan.pos()), getRotationSpeed(), null, Priority.High);
+        RotationManager.request(rotationType.getValue(), RotationUtils.calculate(breakPlan.pos()), getRotationSpeed(), null, Priority.High);
 
         Entity current = mc.level.getEntity(breakPlan.entityId());
         if (!(current instanceof EndCrystal currentCrystal) || !currentCrystal.isAlive()) {

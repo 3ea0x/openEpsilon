@@ -54,12 +54,13 @@ public class MessagePopup implements PanelPopupHost.Popup {
         buttonHoverAnimation.run(buttonBounds.contains(mouseX, mouseY) ? 1.0f : 0.0f);
         UiTree tree = UiTree.build(scope -> {
             UiRect popupBounds = new UiRect(bounds.x(), popupY, bounds.width(), bounds.height());
+            MD3Theme.submitGlassBlur(popupBounds.x(), popupBounds.y(), popupBounds.width(), popupBounds.height(), MD3Theme.CARD_RADIUS);
             scope.pushAbsolute(popupBounds, popup -> {
                 popup.popupCard(popupBounds.atOrigin(),
                         MD3Theme.CARD_RADIUS,
                         MD3Theme.POPUP_SHADOW_BLUR,
                         MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress)),
-                        MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 255));
+                        MD3Theme.glassPopup(MD3Theme.SURFACE_CONTAINER_LOW));
 
                 float titleScale = 0.66f;
                 float messageScale = 0.56f;

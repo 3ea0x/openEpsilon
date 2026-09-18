@@ -68,8 +68,9 @@ public class DropdownTheme {
     private DropdownTheme() {
     }
 
+    /** 面板窗口背景：先决定玻璃材质，再按 Client Setting 的 Background Opacity 缩放不透明度。 */
     public static Color panelBackground() {
-        return MD3Theme.SURFACE_CONTAINER;
+        return MD3Theme.applyBackgroundOpacity(MD3Theme.glassPane(MD3Theme.SURFACE_CONTAINER));
     }
 
     public static Color panelShadow() {
@@ -80,12 +81,34 @@ public class DropdownTheme {
         return MD3Theme.withAlpha(MD3Theme.OUTLINE, 24);
     }
 
+    /**
+     * 下拉模式的模块按钮（启用态）。
+     * <p>
+     * 它是下拉面板里面积最大的背景块，因此先按 Glass Opacity 决定材质、再按 Background Opacity 压缩不透明度，
+     * 与面板背景保持同一套倍率；关闭玻璃时的分支同样要缩放，否则“背景透明度”对该分支无效。
+     */
     public static Color moduleEnabled(float hoverProgress) {
-        return MD3Theme.lerp(MD3Theme.PRIMARY_CONTAINER, MD3Theme.lerp(MD3Theme.PRIMARY_CONTAINER, MD3Theme.PRIMARY, 0.15f), hoverProgress);
+        Color surface;
+        if (!MD3Theme.isGlassEnabled()) {
+            surface = MD3Theme.lerp(MD3Theme.PRIMARY_CONTAINER, MD3Theme.lerp(MD3Theme.PRIMARY_CONTAINER, MD3Theme.PRIMARY, 0.15f), hoverProgress);
+        } else {
+            Color enabled = MD3Theme.withAlpha(MD3Theme.PRIMARY_CONTAINER, MD3Theme.glassAlpha(MD3Theme.isLightTheme() ? 208 : 200));
+            surface = MD3Theme.lerp(enabled, MD3Theme.PRIMARY, hoverProgress * 0.12f);
+        }
+        return MD3Theme.applyBackgroundOpacity(surface);
     }
 
+    /** 下拉模式的模块按钮（禁用态）；与 {@link #moduleEnabled(float)} 走同一套倍率。 */
     public static Color moduleDisabled(float hoverProgress) {
-        return MD3Theme.lerp(MD3Theme.SURFACE_CONTAINER, MD3Theme.SURFACE_CONTAINER_HIGH, hoverProgress);
+        Color surface;
+        if (!MD3Theme.isGlassEnabled()) {
+            surface = MD3Theme.lerp(MD3Theme.SURFACE_CONTAINER, MD3Theme.SURFACE_CONTAINER_HIGH, hoverProgress);
+        } else {
+            Color glass = MD3Theme.glassRow(MD3Theme.SURFACE_CONTAINER);
+            Color hovered = MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_HIGHEST, MD3Theme.glassAlpha(MD3Theme.isLightTheme() ? 236 : 226));
+            surface = MD3Theme.lerp(glass, hovered, hoverProgress);
+        }
+        return MD3Theme.applyBackgroundOpacity(surface);
     }
 
     public static Color moduleTextEnabled() {
@@ -104,8 +127,9 @@ public class DropdownTheme {
         return MD3Theme.TEXT_MUTED;
     }
 
+    /** 下拉设置控件所在的表面；属于背景块，同样随 Background Opacity 缩放。 */
     public static Color settingSurface() {
-        return MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 160);
+        return MD3Theme.applyBackgroundOpacity(MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 160));
     }
 
     public static Color sliderTrack() {
@@ -160,8 +184,14 @@ public class DropdownTheme {
         return MD3Theme.lerp(scrollbar(), MD3Theme.withAlpha(MD3Theme.PRIMARY, 190), hoverProgress);
     }
 
+    /**
+     * Dropdown 模式的模态遮罩：整屏压暗，用于把面板从世界背景里衬出来。
+     * <p>
+     * 它是 Dropdown 独有的整个屏幕背景层（Panel 模式没有），因此同样随 Background Opacity 淡出；
+     * 否则把背景透明度调低后，这层黑色遮罩仍会让整个屏幕发暗。
+     */
     public static Color scrim() {
-        return new Color(0, 0, 0, 50);
+        return MD3Theme.applyBackgroundOpacity(new Color(0, 0, 0, 50));
     }
 
     public static Color groupText() {
@@ -185,7 +215,7 @@ public class DropdownTheme {
      */
     public static Color groupCardBackground(int depth) {
         float ratio = depthRatio(depth);
-        return MD3Theme.withAlpha(MD3Theme.lerp(MD3Theme.SURFACE_CONTAINER_LOW, MD3Theme.SURFACE_CONTAINER_HIGH, ratio * 0.65f), 200);
+        return MD3Theme.applyBackgroundOpacity(MD3Theme.withAlpha(MD3Theme.lerp(MD3Theme.SURFACE_CONTAINER_LOW, MD3Theme.SURFACE_CONTAINER_HIGH, ratio * 0.65f), 200));
     }
 
     /**

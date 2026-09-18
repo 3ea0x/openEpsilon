@@ -7,8 +7,10 @@ import com.github.epsilon.managers.NotificationManager;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.movement.NoSlowdown;
 import com.github.epsilon.modules.impl.movement.Scaffold;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.utils.player.FindItemResult;
 import com.github.epsilon.utils.player.InvUtils;
@@ -42,6 +44,8 @@ public class AutoMLG extends Module {
 
     private final IntSetting interactDelay = intSetting("Interact Delay", 60, 0, 300, 5);
     private final IntSetting collectDelayTicks = intSetting("Collect Delay Ticks", 2, 0, 10, 1);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     private boolean mlgCompleted = true;
     private final TimerUtils interactTimer = new TimerUtils();
@@ -106,7 +110,7 @@ public class AutoMLG extends Module {
             if (quickCollectDelayTicks > 0) {
                 quickCollectDelayTicks--;
             } else if (grimWaitingCollectRotation && grimCollectRotation != null) {
-                RotationManager.INSTANCE.setRotations(grimCollectRotation, 180.0f, Priority.High);
+                RotationManager.request(rotationType.getValue(), grimCollectRotation, 180.0f, Priority.High);
 
                 if (isFacing(grimCollectRotation, 2.0f, 2.5f)) {
                     InvUtils.swap(grimCollectSlot, true);
@@ -137,7 +141,7 @@ public class AutoMLG extends Module {
                         double hitZ = Mth.clamp(eyesPos.z, waterPos.getZ(), waterPos.getZ() + 1.0);
                         Vec3 hitVec = new Vec3(hitX, waterPos.getY() + 0.875, hitZ);
                         Rot2f rotation = RotationUtils.calculate(hitVec);
-                        RotationManager.INSTANCE.setRotations(rotation, 180.0f, Priority.High);
+                        RotationManager.request(rotationType.getValue(), rotation, 180.0f, Priority.High);
                         grimCollectRotation = rotation;
                         grimCollectSlot = bucket.slot();
                         grimWaitingCollectRotation = true;
@@ -148,7 +152,7 @@ public class AutoMLG extends Module {
         }
 
         if (waitingForRotation && lockedRotation != null) {
-            RotationManager.INSTANCE.setRotations(lockedRotation, 180.0f, Priority.High);
+            RotationManager.request(rotationType.getValue(), lockedRotation, 180.0f, Priority.High);
 
             if (!isFacing(lockedRotation, 1.6f, 2.0f)) {
                 return;
@@ -187,7 +191,7 @@ public class AutoMLG extends Module {
                         Vec3 targetVec = new Vec3(bestPos.getX() + 0.5, bestPos.getY() + 1.0, bestPos.getZ() + 0.5);
                         Rot2f rotation = RotationUtils.calculate(targetVec);
 
-                        RotationManager.INSTANCE.setRotations(rotation, 180.0f, Priority.High);
+                        RotationManager.request(rotationType.getValue(), rotation, 180.0f, Priority.High);
 
                         if (rotation.getPitch() > 45) {
                             Vec3 eyesPos = mc.player.getEyePosition();
@@ -202,7 +206,7 @@ public class AutoMLG extends Module {
                             }
 
                             Rot2f preciseRotation = RotationUtils.calculate(hitVec);
-                            RotationManager.INSTANCE.setRotations(preciseRotation, 180.0f, Priority.High);
+                            RotationManager.request(rotationType.getValue(), preciseRotation, 180.0f, Priority.High);
 
                             NoSlowdown noSlowdown = NoSlowdown.INSTANCE;
                             if (noSlowdown.isWorking()) {

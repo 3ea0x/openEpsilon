@@ -220,6 +220,12 @@
     "modules": {
       "elytra fly": {
         "_value": "Elytra Fly",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "pitch40_takeoff_complete": "Pitch40 takeoff complete",
         "pitch40_too_close_to_lower_bounds": "Player must be at least 40 blocks above the lower bounds!",
         "pitch40_no_usable_elytra": "No usable elytra found for takeoff!",
@@ -328,7 +334,10 @@
           "color": "Color",
           "scoreboard": "Scoreboard"
         },
-        "anti cheat": "Anti Cheat",
+        "anti cheat": {
+          "_value": "Anti Cheat",
+          "rotation": "Rotation"
+        },
         "appearance": {
           "_value": "Appearance",
           "uzawa reisa": "Uzawa Reisa"
@@ -371,6 +380,11 @@
         "replace minecraft font": "Replace Minecraft Font",
         "close gui on outside": "Close Gui On Outside",
         "dropdown hints": "Dropdown Hints",
+        "rotation scope": {
+          "_value": "Rotation Scope",
+          "global": "Global",
+          "custom": "Custom"
+        },
         "rotation mode": {
           "_value": "Rotation Mode",
           "silent": "Silent",
@@ -400,6 +414,9 @@
           "fruitsalad": "Fruit Salad",
           "monochrome": "Monochrome"
         },
+        "liquid glass": "Liquid Glass",
+        "glass opacity": "Glass Opacity",
+        "background opacity": "Background Opacity",
         "custom icon": {
           "_value": "Custom Icon",
           "vanilla": "Vanilla",
@@ -804,6 +821,12 @@
       },
       "auto mend": {
         "_value": "Auto Mend",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "switch mode": {
           "_value": "Switch Mode",
           "normal": "Normal",
@@ -813,6 +836,12 @@
       },
       "auto throw": {
         "_value": "Auto Throw",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "min range": "Min Range",
         "max range": "Max Range",
         "fov": "FOV",
@@ -894,6 +923,12 @@
       },
       "crystal blocker": {
         "_value": "Crystal Blocker",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "range": "Range",
         "rotate": {
           "_value": "Rotate",
@@ -912,6 +947,12 @@
       },
       "feet trap": {
         "_value": "Feet Trap",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "toggle on move": "Toggle On Move",
         "toggle on jump": "Toggle On Jump",
         "in air": "In Air",
@@ -941,6 +982,12 @@
       },
       "kill aura": {
         "_value": "Kill Aura",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "pause on eat": "Pause On Eat",
         "pause on scaffold": "Pause On Scaffold",
         "hit select": "Hit Select",
@@ -1030,6 +1077,12 @@
       },
       "key pearl": {
         "_value": "Key Pearl",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "activate key": "Activate Key",
         "pause on eat": "Pause On Eat",
         "delay": "Delay",
@@ -1039,6 +1092,12 @@
       },
       "mace aura": {
         "_value": "Mace Aura",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "mode": {
           "_value": "Mode",
           "normal": "Normal",
@@ -1125,6 +1184,12 @@
       },
       "safe anchor": {
         "_value": "Safe Anchor",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "shield": "Shield",
         "trigger key": "Trigger Key",
         "mode": {
@@ -1182,6 +1247,12 @@
       },
       "silent aim": {
         "_value": "Silent Aim",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "weapon only": "Weapon Only",
         "player": "Player",
         "mob": "Mob",
@@ -1234,6 +1305,12 @@
       },
       "zealot crystal+": {
         "_value": "Zealot Crystal+",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "general": "General",
         "force place": "Force Place",
         "calculation": "Calculation",
@@ -1451,6 +1528,12 @@
       },
       "auto mlg": {
         "_value": "Auto MLG",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "interact delay": "Interact Delay",
         "collect delay ticks": "Collect Delay Ticks"
       },
@@ -1461,6 +1544,12 @@
       },
       "bed nuker": {
         "_value": "Bed Nuker",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "range": "Range",
         "through walls": "Through Walls",
         "rotate": "Rotate",
@@ -1474,6 +1563,12 @@
       },
       "chest aura": {
         "_value": "Chest Aura",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "chests": "Chests",
         "furnaces": "Furnaces",
         "blast furnaces": "Blast Furnaces",
@@ -1747,6 +1842,12 @@
       },
       "auto map": {
         "_value": "Auto Map",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "auto launch": "Auto Launch",
         "spiral spacing": "Spiral Spacing",
         "points per lap": "Points Per Lap",
@@ -1854,6 +1955,12 @@
       },
       "scaffold": {
         "_value": "Scaffold",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "blacklisted blocks": "Blacklisted Blocks",
         "toggle on teleport": "Toggle On Teleport",
         "mode": {
@@ -1945,6 +2052,12 @@
       "stuck": "Stuck",
       "target strafe": {
         "_value": "Target Strafe",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "radius": "Radius",
         "points": "Points",
         "require jump": "Require Jump",
@@ -1953,6 +2066,12 @@
       },
       "velocity": {
         "_value": "Velocity",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "mode": {
           "_value": "Mode",
           "cancel": "Cancel",
@@ -2100,6 +2219,12 @@
       },
       "free camera": {
         "_value": "Free Camera",
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
         "speed": "Speed",
         "speed scroll sensitivity": "Scroll Speed Sensitivity",
         "stay sneaking": "Keep Sneaking",

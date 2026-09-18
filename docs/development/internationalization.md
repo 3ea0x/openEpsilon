@@ -56,6 +56,27 @@ epsilon.modules.auto weapon.min level              -> 位于任意分组中的 S
 `I18NJson` 在读取时拒绝非字符串叶节点（数组、数字、布尔、null），写入时拒绝空路径段和把 `_value`
 当作普通路径段。语言文件按 Dotted key 展开，`_value` 只保存父 key 自身的翻译。
 
+## 可选描述 key
+
+Module 支持在自身 key 下写一个可选的 `description` 叶节点，用于 GUI 悬停提示
+（`Module.getDescription()` → `ModuleTooltip`）。该 key **不参与模板生成**，缺失或留空即不显示提示：
+
+```json
+{
+  "epsilon": {
+    "modules": {
+      "kill aura": {
+        "_value": "Kill Aura",
+        "description": "自动攻击视野内目标，支持多种绕检测模式。"
+      }
+    }
+  }
+}
+```
+
+读取时机沿用 `EpsilonLanguageManager` 的合并结果，因此当前语言缺失时会自动回退 `en_us`；
+`ModuleDescriptions` 之类独立翻译表已被该机制取代，不要再新增平行的描述文件。
+
 ## 加载流程
 
 `EpsilonLanguageManager` 在语言切换和资源重载时重新读取资源栈：

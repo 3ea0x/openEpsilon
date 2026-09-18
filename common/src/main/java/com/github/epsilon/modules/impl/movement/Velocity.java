@@ -9,6 +9,7 @@ import com.github.epsilon.events.impl.PlayerTickEvent;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.combat.AntiBot;
 import com.github.epsilon.modules.impl.combat.KillAura;
 import com.github.epsilon.settings.impl.BoolSetting;
@@ -63,6 +64,9 @@ public class Velocity extends Module {
     private final BoolSetting swingHand = boolSetting("Swing Hand", false, () -> mode.is(Mode.Reduce));
     private final IntSetting delayTicks = intSetting("Delay Ticks", 3, 1, 5, 1, () -> mode.is(Mode.Delay));
     private final BoolSetting jumpReset = boolSetting("Jump Reset", false, () -> mode.is(Mode.Delay));
+
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     private volatile long lag;
     private volatile long delayLag;
@@ -214,7 +218,7 @@ public class Velocity extends Module {
 
         KillAura killAura = KillAura.INSTANCE;
         if (sprintQueue >= 1 && killAura.target == null && !Scaffold.INSTANCE.isEnabled()) {
-            RotationManager.INSTANCE.setRotations(new Rot2f(yaw, RotationManager.INSTANCE.getRotation().getPitch()), 180f, Priority.Highest);
+            RotationManager.request(rotationType.getValue(), new Rot2f(yaw, RotationManager.INSTANCE.getRotation().getPitch()), 180f, Priority.Highest);
         }
     }
 

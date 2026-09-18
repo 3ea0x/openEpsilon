@@ -6,8 +6,10 @@ import com.github.epsilon.events.impl.*;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.utils.client.KeybindUtils;
 import com.github.epsilon.utils.player.ChatUtils;
 import com.github.epsilon.utils.rotation.Priority;
@@ -44,6 +46,9 @@ public class FreeCamera extends Module {
     private final BoolSetting renderHands = boolSetting("Show Hands", true);
     private final BoolSetting rotate = boolSetting("Rotate", false);
     private final BoolSetting staticView = boolSetting("Static", true);
+
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     public final Vector3d pos = new Vector3d();
     public final Vector3d prevPos = new Vector3d();
@@ -163,7 +168,7 @@ public class FreeCamera extends Module {
             }
 
             if (rotation != null) {
-                RotationManager.INSTANCE.setRotations(rotation, 180, Priority.Highest);
+                RotationManager.request(rotationType.getValue(), rotation, 180, Priority.Highest);
             }
         }
 

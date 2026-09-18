@@ -8,6 +8,7 @@ import com.github.epsilon.managers.ExtrapolationManager;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.SettingGroup;
 import com.github.epsilon.settings.impl.*;
 import com.github.epsilon.utils.client.KeybindUtils;
@@ -69,6 +70,8 @@ public class SafeAnchor extends Module {
     private final BoolSetting rotate = boolSetting("Rotate", true);
     private final IntSetting rotationSpeedMin = intSetting("Rotation Speed Min", 15, 1, 360, 1);
     private final IntSetting rotationSpeedMax = intSetting("Rotation Speed Max", 30, 1, 360, 1);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
     private final BoolSetting strict = boolSetting("Strict", true);
     private final BoolSetting breakCrystal = boolSetting("Break Crystal", false);
     private final BoolSetting swapBack = boolSetting("SwapBack", true);
@@ -890,7 +893,7 @@ public class SafeAnchor extends Module {
         int minSpeed = Math.min(rotationSpeedMin.getValue(), rotationSpeedMax.getValue());
         int maxSpeed = Math.max(rotationSpeedMin.getValue(), rotationSpeedMax.getValue());
         int speedValue = ThreadLocalRandom.current().nextInt(minSpeed, maxSpeed + 1);
-        RotationManager.INSTANCE.setRotations(patchedTarget, speedValue, Priority.High);
+        RotationManager.request(rotationType.getValue(), patchedTarget, speedValue, Priority.High);
     }
 
     private boolean rotationAimed() {

@@ -19,6 +19,7 @@ import com.mojang.blaze3d.textures.GpuTextureView;
 import net.minecraft.client.renderer.DynamicUniformStorage;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
@@ -75,18 +76,29 @@ public class BlurShader {
     }
 
     public void render(float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL, float blurStrength) {
-        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, null, null, 0);
+        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, 1.0f, null, null, 0);
     }
 
     public void render(float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL, float blurStrength, float[] segmentRects, float[] segmentRadii, int segmentCount) {
-        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, segmentRects, segmentRadii, segmentCount);
+        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, 1.0f, segmentRects, segmentRadii, segmentCount);
     }
 
     public void render(LuminRenderSystem.LuminRenderTarget source, float x, float y, float width, float height, float radius, float blurStrength) {
-        render(source, x, y, width, height, radius, radius, radius, radius, blurStrength, null, null, 0);
+        render(source, x, y, width, height, radius, radius, radius, radius, blurStrength, 1.0f, null, null, 0);
     }
 
-    private void render(LuminRenderSystem.LuminRenderTarget source, float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL, float blurStrength, float[] segmentRects, float[] segmentRadii, int segmentCount) {
+    /**
+     * 带表面不透明度的圆角模糊。
+     * <p>
+     * 本方法会往当前 target 写一块 alpha 接近 1 的模糊斑，即模糊层的“实体”就是面板背景本身；
+     * GUI 必须通过 {@code opacity} 把它挂到 Background Opacity 上，否则调透明背景后会残留不透明模糊斑。
+     * HUD/世界侧的模糊直接沿用其它重载（opacity = 1.0），不受 GUI 设置影响。
+     */
+    public void render(float x, float y, float width, float height, float radius, float blurStrength, float opacity) {
+        render(null, x, y, width, height, radius, radius, radius, radius, blurStrength, opacity, null, null, 0);
+    }
+
+    private void render(LuminRenderSystem.LuminRenderTarget source, float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL, float blurStrength, float opacity, float[] segmentRects, float[] segmentRadii, int segmentCount) {
         this.ensureProgram();
 
         if (width <= 0.0f || height <= 0.0f) {
@@ -150,7 +162,7 @@ public class BlurShader {
                         sourceWidth, sourceHeight, quality,
                         pxW, pxH, pxX, pxY,
                         rTLPx, rTRPx, rBRPx, rBLPx,
-                        scale, targetHeight, segmentRects, segmentRadii, count
+                        scale, targetHeight, Mth.clamp(opacity, 0.0f, 1.0f), segmentRects, segmentRadii, count
                 )
         );
 
@@ -298,6 +310,7 @@ public class BlurShader {
             float radiusBottomLeft,
             float scale,
             float targetHeight,
+            float opacity,
             float[] segmentRects,
             float[] segmentRadii,
             int segmentCount
@@ -308,7 +321,8 @@ public class BlurShader {
                     .putVec3(width, height, quality)
                     .putVec4(rectWidth, rectHeight, rectX, rectY)
                     .putVec4(radiusTopLeft, radiusTopRight, radiusBottomRight, radiusBottomLeft)
-                    .putVec4(segmentCount, 0.0f, 0.0f, 0.0f);
+                    // SegmentInfo.y 承载模糊层的表面不透明度，着色器用它缩放最终 alpha。
+                    .putVec4(segmentCount, opacity, 0.0f, 0.0f);
 
             for (int i = 0; i < MAX_SEGMENTS; i++) {
                 if (i < segmentCount) {

@@ -108,8 +108,10 @@ public abstract class AbstractDropdownPanel implements DropdownPanel {
         updateScroll(contentHeight, visibleHeight, true);
         float panelHeight = cachedPanelHeight;
 
+        MD3Theme.submitGlassBlur(x, y, width, panelHeight, DropdownTheme.PANEL_RADIUS);
         scope.shadow(x, y, width, panelHeight, DropdownTheme.PANEL_RADIUS, DropdownTheme.PANEL_SHADOW_BLUR, DropdownTheme.panelShadow());
         scope.roundRect(x, y, width, panelHeight, DropdownTheme.PANEL_RADIUS, DropdownTheme.panelBackground());
+        MD3Theme.glassRim(scope, x, y, width, panelHeight, DropdownTheme.PANEL_RADIUS);
 
         float iconX = x + 7.5f;
         float textX = icon == null || icon.isBlank() ? x + 10.0f : iconX + 16.0f;

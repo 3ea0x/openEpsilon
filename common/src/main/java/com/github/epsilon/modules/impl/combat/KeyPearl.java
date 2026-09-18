@@ -9,8 +9,10 @@ import com.github.epsilon.managers.NotificationManager;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.movement.NoSlowdown;
 import com.github.epsilon.settings.impl.BoolSetting;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.settings.impl.KeybindSetting;
 import com.github.epsilon.utils.client.KeybindUtils;
@@ -40,6 +42,8 @@ public class KeyPearl extends Module {
     private final BoolSetting switchBack = boolSetting("Switch Back", true);
     private final IntSetting switchDelay = intSetting("Switch Delay", 0, 0, 20, 1);
     private final BoolSetting swingHand = boolSetting("Swing Hand", true);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     private boolean pressed;
     private boolean hasActivated;
@@ -116,7 +120,7 @@ public class KeyPearl extends Module {
             }
 
             // 强制给你的转头归位
-            RotationManager.INSTANCE.setRotations(new Rot2f(mc.player.getYRot(), mc.player.getXRot()), 180.0f, Priority.Highest);
+            RotationManager.request(rotationType.getValue(), new Rot2f(mc.player.getYRot(), mc.player.getXRot()), 180.0f, Priority.Highest);
 
             InvUtils.swap(pearl.slot(), switchBack.getValue());
 

@@ -8,8 +8,10 @@ import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.utils.rotation.Priority;
 import com.github.epsilon.utils.rotation.Rot2f;
@@ -35,6 +37,8 @@ public class SilentAim extends Module {
     private final BoolSetting invisible = boolSetting("Invisible", false);
     private final DoubleSetting range = doubleSetting("Range", 3.0, 1.0, 6.0, 0.1);
     private final IntSetting fov = intSetting("FOV", 360, 10, 360, 1);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     private boolean redirecting;
     private LivingEntity target;
@@ -49,7 +53,7 @@ public class SilentAim extends Module {
         }
 
         Rot2f rotations = RotationUtils.calculate(target.getEyePosition());
-        RotationManager.INSTANCE.setRotations(rotations, 180, Priority.High);
+        RotationManager.request(rotationType.getValue(), rotations, 180, Priority.High);
 
         HitResult hitResult = RotationManager.INSTANCE.getHitResult();
         if (hitResult != null && hitResult.getType() == HitResult.Type.ENTITY) {

@@ -76,12 +76,13 @@ public class EnumSelectPopup implements PanelPopupHost.Popup {
                     bounds.width() - CONTENT_PADDING * 2, viewportHeight);
 
             UiRect popupBounds = new UiRect(bounds.x(), popupY, bounds.width(), bounds.height());
+            MD3Theme.submitGlassBlur(popupBounds.x(), popupBounds.y(), popupBounds.width(), popupBounds.height(), MD3Theme.CARD_RADIUS);
             scope.pushAbsolute(popupBounds, popup -> {
                 popup.popupCard(popupBounds.atOrigin(),
                         MD3Theme.CARD_RADIUS,
                         MD3Theme.POPUP_SHADOW_BLUR,
                         MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress)),
-                        MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 255));
+                        MD3Theme.glassPopup(MD3Theme.SURFACE_CONTAINER_LOW));
 
                 hoveredIndex = -1;
                 UiRect localViewportBounds = viewportBounds.relativeTo(popupBounds);

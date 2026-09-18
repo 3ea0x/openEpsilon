@@ -15,6 +15,7 @@ import com.github.epsilon.gui.panel.utils.ScrollBarDragState;
 import com.github.epsilon.gui.panel.utils.ScrollBarUtils;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
+import com.github.epsilon.gui.utils.ModuleTooltip;
 import com.github.epsilon.managers.TranslationManager;
 import com.github.epsilon.managers.sound.SoundKey;
 import com.github.epsilon.managers.sound.SoundManager;
@@ -122,10 +123,14 @@ public class ModuleListPanel implements AutoCloseable {
                     Animation selectionAnimation = selectionAnimations.computeIfAbsent(module, ignored -> new Animation(Easing.EASE_OUT_CUBIC, 160L));
                     Animation toggleAnimation = toggleAnimations.computeIfAbsent(module, ignored -> new Animation(Easing.EASE_OUT_ELASTIC, 620L));
                     Animation toggleHoverAnimation = toggleHoverAnimations.computeIfAbsent(module, ignored -> new Animation(Easing.EASE_OUT_CUBIC, 120L));
-                    hoverAnimation.run(row.getBounds().contains(mouseX, mouseY) ? 1.0f : 0.0f);
+                    boolean rowHovered = row.getBounds().contains(mouseX, mouseY);
+                    hoverAnimation.run(rowHovered ? 1.0f : 0.0f);
                     selectionAnimation.run(state.getSelectedModule() == module ? 1.0f : 0.0f);
                     toggleAnimation.run(module.isEnabled() ? 1.0f : 0.0f);
                     toggleHoverAnimation.run(row.getToggleBounds().contains(mouseX, mouseY) ? 1.0f : 0.0f);
+                    if (rowHovered) {
+                        ModuleTooltip.request(module, mouseX, mouseY);
+                    }
                     boolean marqueeActive = row.hasOverflowingKeybind(textRenderer);
                     contentState.noteAnimation(!hoverAnimation.isFinished()
                             || !selectionAnimation.isFinished()
