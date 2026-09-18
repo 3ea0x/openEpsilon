@@ -28,7 +28,6 @@ import com.github.epsilon.utils.timer.TimerUtils;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
-import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -267,9 +266,7 @@ public class KillAura extends Module {
                 if (espMode.is(ESPMode.Deobf)) DeobfESP.markHit(entity);
 
                 if (swingHand.getValue()) {
-                    mc.player.swing(InteractionHand.MAIN_HAND);
-                } else {
-                    mc.getConnection().send(new ServerboundSwingPacket(InteractionHand.MAIN_HAND));
+                    PlayerUtils.swingHand(InteractionHand.MAIN_HAND);
                 }
             }
         }

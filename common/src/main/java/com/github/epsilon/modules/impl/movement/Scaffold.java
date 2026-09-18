@@ -23,11 +23,11 @@ import com.github.epsilon.utils.render.animation.Easing;
 import com.github.epsilon.utils.rotation.RaytraceUtils;
 import com.github.epsilon.utils.rotation.Rot2f;
 import com.github.epsilon.utils.rotation.RotationUtils;
+import com.github.epsilon.utils.player.PlayerUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
-import net.minecraft.network.protocol.game.ServerboundSwingPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
@@ -276,9 +276,7 @@ public class Scaffold extends Module {
             );
             if (result.consumesAction()) {
                 if (swingHand.getValue()) {
-                    mc.player.swing(hand);
-                } else {
-                    mc.getConnection().send(new ServerboundSwingPacket(hand));
+                    PlayerUtils.swingHand(hand);
                 }
                 if (render.getValue()) {
                     renderBoxes.add(new RenderInfo(new AABB(blockPos.relative(direction)), lineColor.getValue(), sideColor.getValue(), System.currentTimeMillis(), fade.getValue(), shrink.getValue()));
@@ -321,7 +319,7 @@ public class Scaffold extends Module {
     @EventHandler
     private void onPacketSend(PacketEvent.Send event) {
         if (event.getPacket() instanceof ServerboundUseItemPacket packet) {
-            ItemStack usedStack = mc.player.getItemInHand(packet.getHand());
+            ItemStack usedStack = mc.player.getItemInHand(packet.hand());
             if (usedStack.is(Items.ENDER_PEARL) || usedStack.isEmpty() && mc.player.getCooldowns().isOnCooldown(Items.ENDER_PEARL.getDefaultInstance())) {
                 pearlUsePacketSent = true;
             }
@@ -410,9 +408,7 @@ public class Scaffold extends Module {
 
         if (result.consumesAction()) {
             if (swingHand.getValue()) {
-                mc.player.swing(hand);
-            } else {
-                mc.getConnection().send(new ServerboundSwingPacket(hand));
+                PlayerUtils.swingHand(hand);
             }
 
             if (render.getValue()) {

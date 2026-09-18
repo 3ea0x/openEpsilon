@@ -20,7 +20,6 @@ import com.github.epsilon.modules.impl.render.*;
 import com.github.epsilon.modules.impl.render.maseffects.MasEffects;
 import com.github.epsilon.utils.client.KeybindUtils;
 import com.mojang.blaze3d.platform.InputConstants;
-import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -181,7 +180,7 @@ public class ModuleManager {
 
     @EventHandler
     private void onKeyPress(KeyPressEvent event) {
-        if (mc.level == null || mc.gui.screen() != null || event.getKey() == GLFW.GLFW_KEY_UNKNOWN) return;
+        if (mc.level == null || mc.gui.screen() != null || event.getKey() == InputConstants.UNKNOWN.getValue()) return;
 
         int keyCode = event.getKey();
         int action = event.getAction();
