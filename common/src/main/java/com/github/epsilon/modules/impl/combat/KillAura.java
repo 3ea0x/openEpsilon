@@ -4,8 +4,10 @@ import com.github.epsilon.events.bus.EventBus;
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.bus.listeners.ConsumerListener;
 import com.github.epsilon.events.impl.ClientTickEvent;
+import com.github.epsilon.events.impl.PacketEvent;
 import com.github.epsilon.events.impl.PlayerTickEvent;
 import com.github.epsilon.events.impl.Render3DEvent;
+import com.github.epsilon.interfaces.ClientboundEntityEventPacketAccessor;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
@@ -16,6 +18,8 @@ import com.github.epsilon.modules.impl.movement.NoSlowdown;
 import com.github.epsilon.modules.impl.movement.Scaffold;
 import com.github.epsilon.modules.impl.movement.Velocity;
 import com.github.epsilon.settings.impl.*;
+import com.github.epsilon.utils.player.FindItemResult;
+import com.github.epsilon.utils.player.InvUtils;
 import com.github.epsilon.utils.player.PlayerUtils;
 import com.github.epsilon.utils.render.esp.CaptureMarkESP;
 import com.github.epsilon.utils.render.esp.CircleESP;
@@ -29,12 +33,17 @@ import com.github.epsilon.utils.timer.TimerUtils;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
+import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundSwingPacket;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 
@@ -46,6 +55,18 @@ import java.util.List;
 public class KillAura extends Module {
 
     public static final KillAura INSTANCE = new KillAura();
+
+    /** 长矛模式在目标 3 格以内不进行静默追踪，避免贴脸转头。 */
+    private static final double SPEAR_MIN_TRACK_DISTANCE = 3.0;
+
+    /** 重锤补刀只在摔落高度大于 3 格时触发。 */
+    private static final double MACE_MIN_FALL_DISTANCE = 3.0;
+
+    /** 长矛 kinetic 命中包来自网络线程，先转成客户端 tick 消费的状态。 */
+    private volatile boolean spearHitPending;
+    private volatile int localPlayerId = -1;
+    /** 长矛命中后延迟 1 tick 再补重锤，避免和 kinetic 命中同一 tick 处理。 */
+    private int spearMaceDelay;
 
     private KillAura() {
         super("Kill Aura", Category.COMBAT);
@@ -62,7 +83,8 @@ public class KillAura extends Module {
 
     private enum Mode {
         OnePointEight,
-        OnePointNinePlus
+        OnePointNinePlus,
+        Spear
     }
 
     private enum TargetMode {
@@ -84,6 +106,12 @@ public class KillAura extends Module {
         Deobf
     }
 
+    private enum MaceSwapMode {
+        Normal,
+        Silent,
+        InvSwitch
+    }
+
     private final BoolSetting pauseOnEat = boolSetting("Pause On Eat", true);
     private final BoolSetting pauseOnScaffold = boolSetting("Pause On Scaffold", true);
     private final BoolSetting hitSelect = boolSetting("Hit Select", true);
@@ -99,6 +127,8 @@ public class KillAura extends Module {
     /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
     private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
     private final IntSetting cps = intSetting("CPS", 12, 1, 20, 1, () -> mode.is(Mode.OnePointEight));
+    private final BoolSetting mace = boolSetting("Mace", true);
+    private final EnumSetting<MaceSwapMode> maceSwapMode = enumSetting("Mace Swap Mode", MaceSwapMode.Silent, mace::getValue);
 
     private final BoolSetting players = boolSetting("Players", true);
     private final BoolSetting mobs = boolSetting("Mobs", true);
@@ -162,6 +192,12 @@ public class KillAura extends Module {
     @EventHandler
     private void onClientTick(ClientTickEvent.Pre event) {
         if (nullCheck()) return;
+
+        localPlayerId = mc.player.getId();
+        if (!mode.is(Mode.Spear)) {
+            spearHitPending = false;
+            spearMaceDelay = 0;
+        }
 
         if (!esp.getValue() || !espMode.is(ESPMode.Deobf)) {
             DeobfESP.clear();
@@ -227,9 +263,21 @@ public class KillAura extends Module {
 
         target = targets.get(targetIndex);
 
+        if (mode.is(Mode.Spear) && spearMaceDelay <= 0) {
+            if (!isUsingSpear() || RotationUtils.getEyeDistanceToEntity(target) <= SPEAR_MIN_TRACK_DISTANCE) {
+                // 不蓄力或目标贴脸时不追踪；重锤补刀待执行时例外，需要朝向目标。
+                return;
+            }
+        }
+
         Rot2f calculate = RotationUtils.calculate(target, true, aimRange.getValue());
         if (RaytraceUtils.raytrace(calculate, aimRange.getValue()).getType() == HitResult.Type.BLOCK) return;
         RotationManager.request(rotationType.getValue(), calculate, rotationSpeed.getValue(), rotation -> RaytraceUtils.raytrace(rotation, 3.0f) instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() == target, rotationPriority.getValue());
+
+        if (mode.is(Mode.Spear)) {
+            // 长矛模式只做静默瞄准，攻击由玩家长按蓄力后手动释放。
+            return;
+        }
 
         HitResult hitResult = RotationManager.INSTANCE.getHitResult();
         if (hitSelect.getValue() && hitResult instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() instanceof Player player && !AntiBot.INSTANCE.isBot(player) && !TargetManager.INSTANCE.isSameTeam(player) && velocity.attackQueue <= 0) {
@@ -256,7 +304,44 @@ public class KillAura extends Module {
     }
 
     @EventHandler
+    private void onPacketReceive(PacketEvent.Receive event) {
+        // 长矛 kinetic 命中的实体事件包在 netty 线程触发，只记录状态，主线程再补重锤。
+        if (!isEnabled() || !mode.is(Mode.Spear) || !(event.getPacket() instanceof ClientboundEntityEventPacket packet)) {
+            return;
+        }
+        if (packet.getEventId() != EntityEvent.KINETIC_HIT) return;
+        if (packet instanceof ClientboundEntityEventPacketAccessor accessor
+                && accessor.epsilon$getEntityId() == localPlayerId) {
+            spearHitPending = true;
+        }
+    }
+
+    @EventHandler
     private void onPlayerTick(PlayerTickEvent.Pre event) {
+        if (mode.is(Mode.Spear)) {
+            // 长矛模式不自动攻击，瞄准由 onClientTick 的静默旋转处理。
+            attacks = 0;
+            if (spearHitPending) {
+                spearHitPending = false;
+                // 先结束长矛蓄力，并延迟 1 tick 再补重锤，避免和 kinetic 命中同一 tick 处理。
+                if (isUsingSpear()) {
+                    mc.gameMode.releaseUsingItem(mc.player);
+                }
+                spearMaceDelay = 1;
+            } else if (spearMaceDelay > 0 && --spearMaceDelay == 0) {
+                // 攻击前再确认一次已松开长矛，避免按住右键重新蓄力时打断补刀。
+                if (isUsingSpear()) {
+                    mc.gameMode.releaseUsingItem(mc.player);
+                }
+                if (target != null && target.isAlive()) {
+                    // 补刀前先把朝向对准目标，否则服务端会因朝向不对拒绝这次攻击。
+                    rotateForMaceFollowUp();
+                    // 长矛 kinetic 命中后补一次重锤，复用统一的重锤切换逻辑。
+                    attackWithMace(target);
+                }
+            }
+            return;
+        }
         HitResult hitResult = RotationManager.INSTANCE.getHitResult();
         while (attacks > 0) {
             attacks--;
@@ -265,15 +350,11 @@ public class KillAura extends Module {
                 Entity entity = entityHitResult.getEntity();
                 if (!entity.isAlive()) return;
 
-                mc.gameMode.attack(mc.player, entity);
+                attackEntity(entity);
 
                 if (espMode.is(ESPMode.Deobf)) DeobfESP.markHit(entity);
 
-                if (swingHand.getValue()) {
-                    mc.player.swing(InteractionHand.MAIN_HAND);
-                } else {
-                    mc.getConnection().send(new ServerboundSwingPacket(InteractionHand.MAIN_HAND));
-                }
+                attackWithMace(entity);
             }
         }
     }
@@ -295,6 +376,9 @@ public class KillAura extends Module {
                             attacks++;
                             lastAttackTime = time;
                         }
+                    }
+                    case Spear -> {
+                        // 长矛模式由玩家长按蓄力触发，KillAura 只负责转头，不自动攻击。
                     }
                 }
             }
@@ -347,11 +431,106 @@ public class KillAura extends Module {
         }
     }
 
+    /**
+     * 执行一次主手攻击；重锤补刀复用该逻辑，保证 SwingHand 行为一致。
+     */
+    private void attackEntity(Entity entity) {
+        mc.gameMode.attack(mc.player, entity);
+        if (swingHand.getValue()) {
+            mc.player.swing(InteractionHand.MAIN_HAND);
+        } else {
+            mc.getConnection().send(new ServerboundSwingPacket(InteractionHand.MAIN_HAND));
+        }
+    }
+
+    /**
+     * 主手命中后立刻切换重锤再补一次攻击。
+     * <p>
+     * 重锤的坠落加成在 baseDamageScaleFactor 之后结算，因此即使第一击重置了攻击冷却，第二击仍能打出额外伤害。
+     * Normal 保留切换结果，Silent 只静默切换快捷栏，InvSwitch 通过容器交换从背包取物。
+     */
+    private void attackWithMace(Entity entity) {
+        if (!mace.getValue() || mc.player.fallDistance <= MACE_MIN_FALL_DISTANCE || entity == null || !entity.isAlive()) return;
+
+        FindItemResult maceResult = findMace();
+        if (!maceResult.found()) return;
+
+        int selectedSlot = mc.player.getInventory().getSelectedSlot();
+        if (maceResult.slot() == selectedSlot) {
+            attackEntity(entity);
+            return;
+        }
+
+        // 不经过 InvUtils.swap 的全局 previousSlot，避免与 AutoWeapon 等模块的延迟回切互相覆盖。
+        switch (maceSwapMode.getValue()) {
+            case Normal, Silent -> mc.player.getInventory().setSelectedSlot(maceResult.slot());
+            case InvSwitch -> InvUtils.invSwap(maceResult.slot());
+        }
+
+        attackEntity(entity);
+
+        switch (maceSwapMode.getValue()) {
+            case Normal -> {
+                // Normal 保留重锤切换结果，不进行回切。
+            }
+            case Silent -> {
+                mc.player.getInventory().setSelectedSlot(selectedSlot);
+                // 补发包把服务端手持槽一并还原，避免长矛蓄力等使用状态被打断。
+                mc.gameMode.ensureHasSentCarriedItem();
+            }
+            case InvSwitch -> InvUtils.invSwapBack();
+        }
+    }
+
+    private FindItemResult findMace() {
+        // 攻击只结算主手，因此排除副手槽位 40；Silent 只能操作快捷栏，InvSwitch 才搜索整个主背包。
+        if (maceSwapMode.is(MaceSwapMode.InvSwitch)) {
+            return InvUtils.find(stack -> stack.is(Items.MACE), 0, 35);
+        }
+        return InvUtils.find(stack -> stack.is(Items.MACE), 0, 8);
+    }
+
+    /**
+     * 重锤补刀前静默对准目标：只发服务端旋转包并让托管旋转/头部跟随，不移动客户端视角。
+     */
+    private void rotateForMaceFollowUp() {
+        if (target == null) return;
+
+        Rot2f rotations = RotationUtils.calculate(target, true, aimRange.getValue());
+
+        // 参考 Scaffold：直接把托管旋转设为目标角度，后续 sendPosition 也会带上该朝向，
+        // 避免补刀前一 tick 还在平滑、服务端检查时又看到旧朝向。
+        RotationManager manager = RotationManager.INSTANCE;
+        if (manager != null && RotationManager.isRotationManaged(rotationType.getValue())) {
+            manager.rotations = rotations;
+            manager.setActive(true);
+            manager.setSmoothed(true);
+        }
+
+        mc.getConnection().send(new ServerboundMovePlayerPacket.Rot(
+                rotations.getYaw(),
+                rotations.getPitch(),
+                mc.player.onGround(),
+                mc.player.horizontalCollision
+        ));
+        mc.player.setYHeadRot(rotations.getYaw());
+    }
+
+    /**
+     * 玩家是否正在长按蓄力长矛。
+     */
+    private boolean isUsingSpear() {
+        return mc.player != null && mc.player.isUsingItem() && mc.player.getUseItem().is(ItemTags.SPEARS);
+    }
+
     private void resetState() {
         targets = null;
         target = null;
         attacks = 0;
         lastAttackTime = 0L;
+        spearHitPending = false;
+        spearMaceDelay = 0;
+        localPlayerId = -1;
     }
 
 }
