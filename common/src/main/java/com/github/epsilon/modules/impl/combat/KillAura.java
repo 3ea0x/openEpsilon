@@ -120,7 +120,7 @@ public class KillAura extends Module {
     private final IntSetting switchDelay = intSetting("Switch Delay", 100, 0, 500, 1, () -> targetMode.is(TargetMode.Switch));
     private final EnumSetting<PriorityMode> priorityMode = enumSetting("Priority Mode", PriorityMode.None);
     public final DoubleSetting searchRange = doubleSetting("Search Range", 4.0, 1.0, 6.0, 0.1);
-    public final DoubleSetting aimRange = doubleSetting("Aim Range", 3.0, 1.0, 6.0, 0.1);
+    public final DoubleSetting attackRange = doubleSetting("Attack Range", 3.0, 0.0, 6.0, 0.1);
     private final IntSetting fov = intSetting("FOV", 360, 10, 360, 1);
     private final IntSetting rotationSpeed = intSetting("Rotation Speed", 180, 10, 180, 10);
     private final EnumSetting<Priority> rotationPriority = enumSetting("Rotation Priority", Priority.High);
@@ -209,7 +209,7 @@ public class KillAura extends Module {
         }
 
         targets = new ArrayList<>(TargetManager.INSTANCE.acquireTargets(TargetRequest.of(
-                searchRange.getValue(),
+                Math.max(searchRange.getValue(), attackRange.getValue()),
                 fov.getValue().floatValue(),
                 players.getValue(),
                 mobs.getValue(),
@@ -270,17 +270,16 @@ public class KillAura extends Module {
             }
         }
 
-        Rot2f calculate = RotationUtils.calculate(target, true, aimRange.getValue());
-        if (RaytraceUtils.raytrace(calculate, aimRange.getValue()).getType() == HitResult.Type.BLOCK) return;
-        RotationManager.request(rotationType.getValue(), calculate, rotationSpeed.getValue(), rotation -> RaytraceUtils.raytrace(rotation, 3.0f) instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() == target, rotationPriority.getValue());
+        Rot2f calculate = RotationUtils.calculate(target, true, attackRange.getValue());
+        if (RaytraceUtils.raytrace(calculate, attackRange.getValue()).getType() == HitResult.Type.BLOCK) return;
+        RotationManager.request(rotationType.getValue(), calculate, rotationSpeed.getValue(), rotation -> RaytraceUtils.raytrace(rotation, attackRange.getValue()) instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() == target, rotationPriority.getValue());
 
         if (mode.is(Mode.Spear)) {
             // 长矛模式只做静默瞄准，攻击由玩家长按蓄力后手动释放。
             return;
         }
 
-        HitResult hitResult = RotationManager.INSTANCE.getHitResult();
-        if (hitSelect.getValue() && hitResult instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() instanceof Player player && !AntiBot.INSTANCE.isBot(player) && !TargetManager.INSTANCE.isSameTeam(player) && velocity.attackQueue <= 0) {
+        if (hitSelect.getValue() && target instanceof Player player && !AntiBot.INSTANCE.isBot(player) && !TargetManager.INSTANCE.isSameTeam(player) && velocity.attackQueue <= 0) {
             ClientPacketListener connection = mc.getConnection();
             PlayerInfo localPlayerInfo = connection == null ? null : connection.getPlayerInfo(mc.player.getUUID());
             int latencyTicks = localPlayerInfo == null ? 0 : localPlayerInfo.getLatency() / 50;
@@ -335,17 +334,25 @@ public class KillAura extends Module {
                 }
                 if (target != null && target.isAlive()) {
                     // 补刀前先把朝向对准目标，否则服务端会因朝向不对拒绝这次攻击。
-                    rotateForMaceFollowUp();
+                    forceAimAtTarget(target);
                     // 长矛 kinetic 命中后补一次重锤，复用统一的重锤切换逻辑。
                     attackWithMace(target);
                 }
             }
             return;
         }
-        HitResult hitResult = RotationManager.INSTANCE.getHitResult();
         while (attacks > 0) {
             attacks--;
             if (pauseOnEat.getValue() && PlayerUtils.isEating() || NoSlowdown.INSTANCE.isWorking()) return;
+            if (target == null || !target.isAlive()) return;
+
+            HitResult hitResult = RotationManager.INSTANCE.getHitResult();
+            if (!(hitResult instanceof EntityHitResult currentHit && currentHit.getEntity() == target)) {
+                // 原版托管 hitResult 只有默认 3 格 reach，攻击范围滑块更大时需要按 attackRange 重新解析。
+                forceAimAtTarget(target);
+                hitResult = RaytraceUtils.raytrace(RotationManager.INSTANCE.getRotation(), attackRange.getValue());
+            }
+
             if (hitResult instanceof EntityHitResult entityHitResult) {
                 Entity entity = entityHitResult.getEntity();
                 if (!entity.isAlive()) return;
@@ -362,8 +369,7 @@ public class KillAura extends Module {
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (target != null && Velocity.INSTANCE.attackQueue <= 0) {
-            HitResult hitResult = RotationManager.INSTANCE.getHitResult();
-            if (!hitSelect.getValue() || !(hitResult instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() instanceof Player)) {
+            if (!hitSelect.getValue() || !(target instanceof Player)) {
                 switch (mode.getValue()) {
                     case OnePointNinePlus -> {
                         if (attacks == 0 && mc.player.getAttackStrengthScale(0.5f) >= 1.0f) {
@@ -491,12 +497,12 @@ public class KillAura extends Module {
     }
 
     /**
-     * 重锤补刀前静默对准目标：只发服务端旋转包并让托管旋转/头部跟随，不移动客户端视角。
+     * 静默对准目标：只发服务端旋转包并让托管旋转/头部跟随，不移动客户端视角。
      */
-    private void rotateForMaceFollowUp() {
-        if (target == null) return;
+    private void forceAimAtTarget(Entity aimTarget) {
+        if (aimTarget == null) return;
 
-        Rot2f rotations = RotationUtils.calculate(target, true, aimRange.getValue());
+        Rot2f rotations = RotationUtils.calculate(aimTarget, true, attackRange.getValue());
 
         // 参考 Scaffold：直接把托管旋转设为目标角度，后续 sendPosition 也会带上该朝向，
         // 避免补刀前一 tick 还在平滑、服务端检查时又看到旧朝向。

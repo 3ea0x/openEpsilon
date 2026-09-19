@@ -205,7 +205,7 @@ public class AutoThrow extends Module {
         }
 
         KillAura killAura = KillAura.INSTANCE;
-        if (killAura.isEnabled() && ((killAura.target != null && RotationUtils.getEyeDistanceToEntity(killAura.target) > killAura.aimRange.getValue()))) {
+        if (killAura.isEnabled() && ((killAura.target != null && RotationUtils.getEyeDistanceToEntity(killAura.target) > killAura.attackRange.getValue()))) {
             return false;
         }
 
