@@ -89,8 +89,9 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
         for (String name : configs) {
             boolean activeRow = Objects.equals(name, active);
             boolean hovered = isHovered(mouseX, mouseY, contentX, currentY, contentW, ROW_HEIGHT);
+            // 配置列表行与模块按钮同属背景块，跟随 Background Opacity；行内的删除按钮与操作按钮属于控件，保持不透明。
             scope.roundRect(contentX, currentY, contentW, ROW_HEIGHT, DropdownTheme.BUTTON_RADIUS,
-                    activeRow ? MD3Theme.PRIMARY_CONTAINER : (hovered ? MD3Theme.SURFACE_CONTAINER_HIGH : MD3Theme.SURFACE_CONTAINER_LOW));
+                    MD3Theme.applyBackgroundOpacity(activeRow ? MD3Theme.PRIMARY_CONTAINER : (hovered ? MD3Theme.SURFACE_CONTAINER_HIGH : MD3Theme.SURFACE_CONTAINER_LOW)));
             float nameScale = 0.56f;
             scope.text(trimToWidth(name, nameScale, contentW - 28.0f, textMetrics), contentX + 6.0f, getCenteredTextY(textMetrics, currentY, ROW_HEIGHT, nameScale), nameScale,
                     activeRow ? MD3Theme.ON_PRIMARY_CONTAINER : MD3Theme.TEXT_PRIMARY);

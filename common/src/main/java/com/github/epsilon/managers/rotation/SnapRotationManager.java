@@ -11,6 +11,20 @@ public class SnapRotationManager extends RotationManager {
 
     private Rot2f snappedRot = null;
 
+    public SnapRotationManager() {
+        super(RotationMode.SNAP);
+    }
+
+    /**
+     * 切走前把快照角度发回服务端，否则上一次快照的目标角度会留在服务端无人恢复。
+     * <p>
+     * 这里不结束旋转：切换模式可能只是同一 tick 内另一个模块接手，进行中的请求由新模式继续。
+     */
+    @Override
+    protected void onModeSwitchAway() {
+        restoreSnappedRotation(snappedRot, false);
+    }
+
     @Override
     protected void onRotationsSet() {
         snapToCurrentRotation();

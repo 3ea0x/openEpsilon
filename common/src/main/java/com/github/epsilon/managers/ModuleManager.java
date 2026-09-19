@@ -69,11 +69,14 @@ public class ModuleManager {
         addModule(SpearKill.INSTANCE);
         addModule(TriggerBot.INSTANCE);
         addModule(ZealotCrystalPlus.INSTANCE);
+        addModule(AntiCrawl.INSTANCE);
+        addModule(AutoCity.INSTANCE);
 
         // Player
         addModule(AutoArmor.INSTANCE);
         addModule(AutoCrossbowRelease.INSTANCE);
         addModule(AutoFirework.INSTANCE);
+        addModule(SmartTweak.INSTANCE);
         addModule(AutoKouZi.INSTANCE);
         addModule(AutoBan.INSTANCE);
         addModule(AutoMLG.INSTANCE);

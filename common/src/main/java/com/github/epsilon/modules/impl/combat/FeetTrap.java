@@ -6,7 +6,9 @@ import com.github.epsilon.events.impl.PlayerTickEvent;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.impl.BoolSetting;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.utils.player.ChatUtils;
 import com.github.epsilon.utils.player.FindItemResult;
@@ -47,8 +49,11 @@ public class FeetTrap extends Module {
     private final IntSetting blocksPerTick = intSetting("Blocks Per Tick", 1, 1, 8, 1);
     private final BoolSetting rotate = boolSetting("Rotate", true);
     private final IntSetting rotationSpeed = intSetting("Rotation Speed", 180, 18, 180, 18, rotate::getValue);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
     private final BoolSetting enderChest = boolSetting("Ender Chest", true);
     private final BoolSetting inventorySwap = boolSetting("Inventory Swap", true);
+    private final BoolSetting doubleHigh = boolSetting("Double High", true);
 
     private double startX = 0, startY = 0, startZ = 0;
     private int progress = 0;
@@ -72,7 +77,7 @@ public class FeetTrap extends Module {
     @EventHandler
     private void onPlayerTick(PlayerTickEvent.Pre event) {
         if (rotation != null && rotate.getValue()) {
-            RotationManager.INSTANCE.setRotations(rotation, rotationSpeed.getValue().doubleValue());
+            RotationManager.request(rotationType.getValue(), rotation, rotationSpeed.getValue().doubleValue());
         }
     }
 
@@ -111,6 +116,10 @@ public class FeetTrap extends Module {
 
         doSurround(BlockPos.containing(mc.player.getX(), mc.player.getY(), mc.player.getZ()), result.slot());
         doSurround(BlockPos.containing(mc.player.getX(), mc.player.getY() + 0.8, mc.player.getZ()), result.slot());
+        // 双层封锁：再往上补一层，防止目标搭高或借助跳跃脱离。
+        if (doubleHigh.getValue()) {
+            doSurround(BlockPos.containing(mc.player.getX(), mc.player.getY() + 1.6, mc.player.getZ()), result.slot());
+        }
     }
 
     private void doSurround(BlockPos pos, int slot) {

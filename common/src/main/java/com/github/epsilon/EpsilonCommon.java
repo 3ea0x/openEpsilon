@@ -7,6 +7,7 @@ import com.github.epsilon.graphics.schedulers.render3d.Render3DScheduler;
 import com.github.epsilon.managers.*;
 import com.github.epsilon.managers.network.ClientboundPacketManager;
 import com.github.epsilon.managers.network.ServerboundPacketManager;
+import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.modules.impl.ClientSetting;
 import net.minecraft.client.Minecraft;
@@ -25,6 +26,10 @@ public class EpsilonCommon {
         // 初始化客户端系统
         ModuleManager.INSTANCE.initModules();
         HudElementManager.INSTANCE.initElements();
+
+        // 托管旋转实例依赖已注册的 EventBus lambda factory，必须在事件总线就绪之后创建。
+        // 不能放在 ClientSetting 构造期：该类可能在 Minecraft 构造期间就被加载并订阅事件。
+        RotationManager.switchRotationManager(ClientSetting.INSTANCE.rotationMode.getValue());
 
         // 初始化 Managers
         ExecutorManager.INSTANCE.getClass();

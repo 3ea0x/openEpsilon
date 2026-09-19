@@ -62,7 +62,9 @@ public class FriendDropdownPanel extends AbstractDropdownPanel {
             float rowX = x + PADDING;
             float rowWidth = width - PADDING * 2.0f;
             boolean hovered = isHovered(mouseX, mouseY, rowX, rowY, rowWidth, ROW_HEIGHT);
-            scope.roundRect(rowX, rowY, rowWidth, ROW_HEIGHT, DropdownTheme.BUTTON_RADIUS, hovered ? MD3Theme.SURFACE_CONTAINER_HIGH : MD3Theme.SURFACE_CONTAINER_LOW);
+            // 好友列表行与模块按钮同属背景块，跟随 Background Opacity；行内的移除按钮属于控件，保持不透明。
+            scope.roundRect(rowX, rowY, rowWidth, ROW_HEIGHT, DropdownTheme.BUTTON_RADIUS,
+                    MD3Theme.applyBackgroundOpacity(hovered ? MD3Theme.SURFACE_CONTAINER_HIGH : MD3Theme.SURFACE_CONTAINER_LOW));
             float removeX = x + width - PADDING - 18.0f;
             float removeY = rowY + (ROW_HEIGHT - REMOVE_BUTTON_SIZE) * 0.5f;
             String displayName = trimToWidth(name, DropdownTheme.SETTING_TEXT_SCALE, width - 38.0f, textMetrics);

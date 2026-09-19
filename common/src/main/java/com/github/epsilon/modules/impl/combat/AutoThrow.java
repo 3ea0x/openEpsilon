@@ -8,6 +8,7 @@ import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.movement.Scaffold;
 import com.github.epsilon.settings.impl.DoubleSetting;
 import com.github.epsilon.settings.impl.EnumSetting;
@@ -41,6 +42,8 @@ public class AutoThrow extends Module {
     private final IntSetting delay = intSetting("Delay", 500, 0, 2000, 10);
     private final IntSetting rotationSpeed = intSetting("Rotation Speed", 180, 1, 180, 10);
     private final EnumSetting<Priority> rotationPriority = enumSetting("Rotation Priority", Priority.Lowest);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
 
     private final TimerUtils timer = new TimerUtils();
     private boolean shouldThrow;
@@ -121,7 +124,7 @@ public class AutoThrow extends Module {
 
                 Rot2f rotation = RotationUtils.calculate(getAimVec(currentTarget), false);
 
-                RotationManager.INSTANCE.setRotations(rotation, rotationSpeed.getValue(), rotationPriority.getValue());
+                RotationManager.request(rotationType.getValue(), rotation, rotationSpeed.getValue(), rotationPriority.getValue());
 
                 HitResult hit = RaytraceUtils.raytrace(rotation, maxRange);
                 if (hit.getType() != HitResult.Type.ENTITY) return;
@@ -202,7 +205,7 @@ public class AutoThrow extends Module {
         }
 
         KillAura killAura = KillAura.INSTANCE;
-        if (killAura.isEnabled() && ((killAura.target != null && RotationUtils.getEyeDistanceToEntity(killAura.target) > killAura.aimRange.getValue()))) {
+        if (killAura.isEnabled() && ((killAura.target != null && RotationUtils.getEyeDistanceToEntity(killAura.target) > killAura.attackRange.getValue()))) {
             return false;
         }
 

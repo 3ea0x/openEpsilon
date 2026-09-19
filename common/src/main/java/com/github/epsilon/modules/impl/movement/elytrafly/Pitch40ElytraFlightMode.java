@@ -186,7 +186,7 @@ public class Pitch40ElytraFlightMode extends ElytraFlightMode {
     }
 
     private void redirectRotation() {
-        RotationManager.INSTANCE.setRotations(new Rot2f(elytraFly.getPitch40Yaw(mc.player.getYRot()), pitch), 180, Priority.Highest);
+        RotationManager.request(elytraFly.rotationType.getValue(), new Rot2f(elytraFly.getPitch40Yaw(mc.player.getYRot()), pitch), 180, Priority.Highest);
     }
 
     private void finishTakeoff() {

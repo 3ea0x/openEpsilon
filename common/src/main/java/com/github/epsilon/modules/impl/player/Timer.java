@@ -117,7 +117,7 @@ public class Timer extends Module {
                 if (!lagging) releaseAll();
 
                 KillAura killAura = KillAura.INSTANCE;
-                if (killAura.isEnabled() && killAura.target != null && mc.player.distanceTo(killAura.target) <= killAura.aimRange.getValue().floatValue()) {
+                if (killAura.isEnabled() && killAura.target != null && mc.player.distanceTo(killAura.target) <= killAura.attackRange.getValue().floatValue()) {
                     stopBalance();
                     return;
                 }

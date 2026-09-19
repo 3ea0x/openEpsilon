@@ -18,6 +18,7 @@ import com.github.epsilon.gui.panel.popup.StringListSelectPopup;
 import com.github.epsilon.gui.panel.utils.IMEFocusHelper;
 import com.github.epsilon.gui.theme.EpsilonUiTheme;
 import com.github.epsilon.gui.theme.MD3Theme;
+import com.github.epsilon.gui.utils.ModuleTooltip;
 import com.github.epsilon.managers.AssetManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.impl.ClientSetting;
@@ -122,6 +123,7 @@ public class DropdownScreen extends Screen implements ListSettingPopupScreen {
 
     private void drawGui(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         scrimAnim.run(1.0f);
+        ModuleTooltip.clear();
         dropdownBatch = scene.batch(UiLayer.CONTENT);
         dropdownLayer = -10;
         popupHost.setOverlayBounds(new UiRect(0.0f, 0.0f, LuminRenderSystem.getScaledWidth(), LuminRenderSystem.getScaledHeight()));
@@ -208,6 +210,11 @@ public class DropdownScreen extends Screen implements ListSettingPopupScreen {
 
         drawSearch(backgroundMouseX, backgroundMouseY);
         popupHost.render(graphics, scene.batch(UiLayer.POPUP), mouseX, mouseY, partialTick);
+
+        // 悬停描述提示提交到最高层，本帧请求在此消费后随 scene.flush() 一起绘制。
+        scene.submit(UiLayer.OVERLAY, UiTree.build(scope -> ModuleTooltip.render(scope, uiTextMetrics,
+                LuminRenderSystem.getScaledWidth(), LuminRenderSystem.getScaledHeight())));
+
         scene.flush();
         popupHost.flush();
     }

@@ -95,6 +95,50 @@ scissor 通过 `LuminRenderSystem.toFramebufferScissor(...)` 转换；布局、�
 绘制与测量必须使用相同 font loader 和 scale。主题由 `MD3Theme` 生成调色板，业务代码通过
 `EpsilonUiTheme.INSTANCE` 以 `UiTheme` 接口访问，不得在控件中维护独立颜色表或 renderer。
 
+## 液态玻璃材质
+
+`ClientSetting.themeGlass`（Liquid Glass，默认开启）控制玻璃材质，与 Theme Mode / Theme Preset 互不绑定；
+`ClientSetting.themeGlassOpacity`（Glass Opacity，0.0~1.0，步长 0.05，默认 1.0）在开启状态下按倍率缩放玻璃的 alpha：
+
+- `MD3Theme.glassPane` / `glassSection` / `glassPopup` / `glassRow` 只改不透明度与轻微提亮，保留主题色相；
+  关闭开关时原样返回传入颜色（`glassPopup` 保持原本的全不透明表面）。
+- `MD3Theme.glassOpacity()` 读取倍率，`MD3Theme.glassAlpha(int)` 是唯一的缩放入口；只有“因启用玻璃而降低
+  不透明度”的颜色可以经过它（玻璃表面、`rowSurface` 的高亮叠加、`DropdownTheme` 的模块行、`glassRim` 的边缘
+  与高光），普通不透明表面不得缩放，否则会连带改变非玻璃配色。
+- 倍率不影响实时背景模糊：`submitGlassBlur` 始终按 `GLASS_BLUR_STRENGTH` 执行，只由 Liquid Glass 开关控制。
+- `MD3Theme.submitGlassBlur(x, y, w, h, radius)` 提交实时背景模糊，内部走 `BlurShader.INSTANCE.render`。
+  该调用**立即执行**：先模糊、再记录玻璃表面，否则会把已经画好的 UI 一起糊掉。
+- `MD3Theme.glassRim(scope, ...)` 画玻璃边缘的细描边与顶部高光线，必须在玻璃表面之后调用。
+
+Panel 与 Dropdown 都把 UI 画进离屏 target，`BlurShader` 的取样源因此是主 target（世界/背景），
+结果写回离屏 target，正好形成“背景模糊 + 玻璃叠加”的效果。
+
+## GUI 窗口背景不透明度
+
+`ClientSetting.guiBackgroundOpacity`（Background Opacity，0.0~1.0，步长 0.05，默认 1.0）是**与玻璃材质正交**的
+第二个倍率：玻璃决定背景“是什么材质”，本倍率决定背景“有多不透明”。因此它不依赖 Liquid Glass 开关，关闭玻璃后
+仍可把原本不透明的表面调透明。
+
+- 入口是 `MD3Theme.backgroundOpacity()` / `backgroundAlpha(int)` / `applyBackgroundOpacity(Color)`；调用方先决定
+  材质（`glassPane` / `glassSection`），再由 `applyBackgroundOpacity` 压缩不透明度。两个倍率在背景块上相乘。
+- 作用范围是 GUI 里所有**背景块**：Panel 模式的主面板与导航栏/模块列表/详情三个分区卡片（`PanelScreen.drawChrome`）、
+  Dropdown 模式的每个面板（`DropdownTheme.panelBackground`）、两种模式的模块按钮与行（`DropdownTheme.moduleEnabled` /
+  `moduleDisabled`、`MD3Theme.rowSurface`）、下拉分组卡片（`DropdownTheme.groupCardBackground`）与下拉设置表面
+  （`DropdownTheme.settingSurface`）。
+- 缩放必须包在建好材质之后的**最终颜色**上（含关闭玻璃的分支），否则调低倍率时这些大块仍是不透明表面；
+  本轮修复的正是 `moduleEnabled` / `moduleDisabled` / `rowSurface` 漏缩放导致模块按键不跟随的问题。
+- 只画背景块，不含其内部控件与前景：文本、图标、描边（`glassRim`、`groupCardOutline`）、悬浮/选中叠加
+  （`stateLayer`）、开关与滑块轨道、输入框、按键绑定芯片、滚动条，以及弹窗（`glassPopup`，如颜色选择器、枚举选择）。
+  这些保持全不透明以保证可读性与可点性。
+- **背景模糊层本身也随本倍率淡出**。`submitGlassBlur` 写入的是一块 alpha≈1 的模糊斑，它才是面板“背景”的实体；
+  不缩放它就会出现「背景透明度调到 0，背景仍然发黑、发虚」——Glass Opacity 也压不住这一层。实现方式是给
+  `BlurShader` 增加表面不透明度参数：着色器在 `SegmentInfo.y` 取该值并缩放输出 alpha，`SegmentInfo` 原有的
+  `y/z/w` 未使用，因此 UBO 尺寸与布局完全不变。HUD/世界侧的模糊沿用 `opacity = 1.0` 的重载，不受 GUI 设置影响。
+- `glassRim` 的边缘与高光同时乘 `Glass Opacity` 与 `Background Opacity`；背景全透明时二者都归零，
+  否则会留下悬空边框和一条白色高光线（观感上像散光）。
+- Dropdown 模式独有的整屏模态遮罩（`DropdownTheme.scrim()`，纯黑 alpha 50）也随本倍率淡出，
+  否则背景调透明后整个屏幕仍被压暗；Panel 模式没有这层遮罩。
+
 ## 验证
 
 仓库当前不维护 GUI 测试源码。修改 Screen、HUD 或 layer 顺序后至少运行双平台编译，并启动受影响的

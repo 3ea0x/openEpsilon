@@ -302,10 +302,11 @@ public class RegistryListSelectPopup<T> implements PanelPopupHost.Popup {
             UiRect animatedBounds = new UiRect(bounds.x(), popupY, bounds.width(), bounds.height());
             UiRect searchBounds = getSearchBounds(popupY);
             UiRect animatedViewport = getViewport(popupY);
+            MD3Theme.submitGlassBlur(animatedBounds.x(), animatedBounds.y(), animatedBounds.width(), animatedBounds.height(), MD3Theme.CARD_RADIUS);
             scope.pushAbsolute(animatedBounds, popup -> {
                 popup.popupCard(animatedBounds.atOrigin(), MD3Theme.CARD_RADIUS, MD3Theme.POPUP_SHADOW_BLUR,
                         MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress)),
-                        MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 255));
+                        MD3Theme.glassPopup(MD3Theme.SURFACE_CONTAINER_LOW));
 
                 float titleY = centeredTextY(6.0f, TITLE_HEIGHT, 0.68f);
                 float summaryScale = 0.52f;

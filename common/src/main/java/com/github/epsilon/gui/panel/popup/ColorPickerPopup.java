@@ -72,12 +72,13 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
             float progress = scope.animate(openAnimation, 1.0f);
             float popupY = bounds.y() - (1.0f - progress) * 6.0f;
             UiRect popupBounds = new UiRect(bounds.x(), popupY, bounds.width(), bounds.height());
+            MD3Theme.submitGlassBlur(popupBounds.x(), popupBounds.y(), popupBounds.width(), popupBounds.height(), MD3Theme.CARD_RADIUS);
             scope.pushAbsolute(popupBounds, popup -> {
                 popup.popupCard(popupBounds.atOrigin(),
                         MD3Theme.CARD_RADIUS,
                         MD3Theme.POPUP_SHADOW_BLUR,
                         MD3Theme.withAlpha(MD3Theme.SHADOW, (int) (MD3Theme.POPUP_SHADOW_ALPHA * progress)),
-                        MD3Theme.withAlpha(MD3Theme.SURFACE_CONTAINER_LOW, 255));
+                        MD3Theme.glassPopup(MD3Theme.SURFACE_CONTAINER_LOW));
                 popup.pushAbsolute(anchorBounds, anchor ->
                         anchor.roundRect(0.0f, 0.0f, anchorBounds.width(), anchorBounds.height(), MD3Theme.CARD_RADIUS, MD3Theme.withAlpha(MD3Theme.SECONDARY_CONTAINER, 255)));
 

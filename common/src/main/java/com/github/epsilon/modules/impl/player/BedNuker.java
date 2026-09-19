@@ -7,10 +7,12 @@ import com.github.epsilon.graphics.schedulers.render3d.Render3DScheduler;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.modules.impl.combat.KillAura;
 import com.github.epsilon.modules.impl.movement.Scaffold;
 import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
+import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.utils.rotation.Priority;
 import com.github.epsilon.utils.rotation.RaytraceUtils;
@@ -43,6 +45,8 @@ public class BedNuker extends Module {
     private final BoolSetting throughWalls = boolSetting("Through Walls", false);
     private final BoolSetting rotate = boolSetting("Rotate", true);
     private final IntSetting rotationSpeed = intSetting("Rotation Speed", 180, 10, 180, 10, rotate::getValue);
+    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
+    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope);
     private final BoolSetting swingHand = boolSetting("Swing Hand", true);
     private final BoolSetting esp = boolSetting("ESP", true);
 
@@ -89,9 +93,9 @@ public class BedNuker extends Module {
         if (rotate.getValue()) {
             Rot2f rot = RotationUtils.calculate(currentAimPoint(bedTargetNow));
             if (bedTargetNow) {
-                RotationManager.INSTANCE.setRotations(rot, rotationSpeed.getValue(), candidate -> isBedHit(candidate, maxRange), Priority.Low);
+                RotationManager.request(rotationType.getValue(), rot, rotationSpeed.getValue(), candidate -> isBedHit(candidate, maxRange), Priority.Low);
             } else {
-                RotationManager.INSTANCE.setRotations(rot, rotationSpeed.getValue(), Priority.Low);
+                RotationManager.request(rotationType.getValue(), rot, rotationSpeed.getValue(), Priority.Low);
             }
         }
 

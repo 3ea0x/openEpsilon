@@ -3,6 +3,7 @@ package com.github.epsilon.modules.impl.movement;
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.impl.PacketEvent;
+import com.github.epsilon.events.impl.PlayerTickEvent;
 import com.github.epsilon.events.impl.SendPositionEvent;
 import com.github.epsilon.events.impl.SlowdownEvent;
 import com.github.epsilon.managers.NotificationManager;
@@ -18,6 +19,7 @@ import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.ClientboundPingPacket;
+import net.minecraft.network.protocol.common.ServerboundPongPacket;
 import net.minecraft.network.protocol.game.*;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
@@ -38,8 +40,17 @@ public class NoSlowdown extends Module {
     private enum Mode {
         Vanilla,
         GrimBlink,
+        GrimC0F,
         Grim1_2,
         Grim1_3
+    }
+
+    /** GrimC0F 的换手时序：取消 C0F → 换手 → 进食 → 结束后回补被扣下的包。 */
+    private enum C0FStep {
+        NONE,
+        CANCEL_C0F,
+        SWAP_HANDS,
+        EATING
     }
 
     private final EnumSetting<Mode> mode = enumSetting("Mode", Mode.Vanilla);
@@ -53,6 +64,11 @@ public class NoSlowdown extends Module {
     private int useDuration = 32;
 
     private final Queue<Packet<?>> packets = new LinkedBlockingQueue<>();
+
+    // GrimC0F 单独持有一份被扣下的包：它的回补走 send()，与 GrimBlink 的 handle() 语义不同，不能共用队列。
+    private C0FStep c0fStep = C0FStep.NONE;
+    private int noUsingItemTicks = 0;
+    private final Queue<Packet<?>> c0fPackets = new LinkedBlockingQueue<>();
 
     public boolean isWorking() {
         return isEnabled() && mode.is(Mode.GrimBlink) && eating;
@@ -69,6 +85,9 @@ public class NoSlowdown extends Module {
         eating = false;
         ticks = 0;
         useDuration = 32;
+        c0fStep = C0FStep.NONE;
+        noUsingItemTicks = 0;
+        releaseC0FPackets();
     }
 
     @EventHandler
@@ -158,8 +177,64 @@ public class NoSlowdown extends Module {
         switch (mode.getValue()) {
             case Vanilla -> cancel(event);
             case GrimBlink -> grimBlink(event);
+            case GrimC0F -> grimC0F(event);
             case Grim1_2 -> grim50(event);
             case Grim1_3 -> grim33(event);
+        }
+    }
+
+    @EventHandler
+    private void onPlayerTick(PlayerTickEvent.Pre event) {
+        if (nullCheck() || !mode.is(Mode.GrimC0F)) return;
+
+        if (c0fStep != C0FStep.EATING) {
+            noUsingItemTicks = 0;
+            return;
+        }
+
+        if (mc.player.isUsingItem()) {
+            noUsingItemTicks = 0;
+            return;
+        }
+
+        // 进食被服务端中断后，等 5 tick 再回补被扣下的包并换回主手。
+        noUsingItemTicks++;
+        if (noUsingItemTicks >= 5) {
+            releaseC0FPackets();
+            sendSwapOffhand();
+        }
+    }
+
+    @EventHandler
+    private void onC0FPacketSend(PacketEvent.Send event) {
+        if (!mode.is(Mode.GrimC0F)) return;
+
+        Packet<?> packet = event.getPacket();
+
+        if (packet instanceof ServerboundPongPacket && c0fStep != C0FStep.NONE) {
+            event.cancel();
+            c0fPackets.add(packet);
+
+            if (c0fStep == C0FStep.CANCEL_C0F) {
+                c0fStep = C0FStep.SWAP_HANDS;
+                sendSwapOffhand();
+            }
+        }
+
+        if (packet instanceof ServerboundPlayerActionPacket actionPacket
+                && actionPacket.getAction() == ServerboundPlayerActionPacket.Action.RELEASE_USE_ITEM
+                && c0fStep == C0FStep.EATING) {
+            releaseC0FPackets();
+            sendSwapOffhand();
+        }
+    }
+
+    @EventHandler
+    private void onC0FPacketReceive(PacketEvent.Receive event) {
+        if (!mode.is(Mode.GrimC0F)) return;
+        if (event.getPacket() instanceof ClientboundContainerSetSlotPacket && c0fStep == C0FStep.SWAP_HANDS) {
+            mc.options.keyUse.setDown(true);
+            c0fStep = C0FStep.EATING;
         }
     }
 
@@ -183,6 +258,60 @@ public class NoSlowdown extends Module {
     private void grim33(SlowdownEvent event) {
         if (mc.player.getUseItemRemainingTicks() % 3 == 0 && mc.player.getUseItemRemainingTicks() <= 30) {
             event.setSlowdown(false);
+        }
+    }
+
+    /**
+     * GrimC0F：先松手并换手，等服务端下发槽位更新后再由本体继续进食，从而避开 C0F 减速。
+     * 对手持双份食物的情况直接放弃，避免换手后仍然触发减速。
+     */
+    private void grimC0F(SlowdownEvent event) {
+        if (mc.player.getUseItemRemainingTicks() <= 0 || !isFoodOrDrink(mc.player.getUseItem())) {
+            return;
+        }
+
+        InteractionHand oppositeHand = mc.player.getUsedItemHand() == InteractionHand.MAIN_HAND ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        if (isFoodOrDrink(mc.player.getItemInHand(oppositeHand))) {
+            return;
+        }
+
+        if (c0fStep != C0FStep.EATING) {
+            mc.options.keyUse.setDown(false);
+        }
+
+        if (c0fStep == C0FStep.NONE) {
+            c0fStep = C0FStep.CANCEL_C0F;
+
+            if (mc.getConnection() != null && mc.player.containerMenu != mc.player.inventoryMenu) {
+                mc.getConnection().send(new ServerboundContainerClosePacket(mc.player.containerMenu.containerId));
+            }
+        } else if (c0fStep == C0FStep.EATING) {
+            mc.player.setSprinting(true);
+            event.setSlowdown(false);
+        }
+    }
+
+    /** 回补 GrimC0F 扣下的包；回补后时序回到初始状态。 */
+    private void releaseC0FPackets() {
+        c0fStep = C0FStep.NONE;
+
+        if (mc.getConnection() == null) {
+            c0fPackets.clear();
+            return;
+        }
+        Packet<?> packet;
+        while ((packet = c0fPackets.poll()) != null) {
+            mc.getConnection().send(packet);
+        }
+    }
+
+    private void sendSwapOffhand() {
+        if (mc.getConnection() != null) {
+            mc.getConnection().send(new ServerboundPlayerActionPacket(
+                    ServerboundPlayerActionPacket.Action.SWAP_ITEM_WITH_OFFHAND,
+                    BlockPos.ZERO,
+                    Direction.DOWN
+            ));
         }
     }
 

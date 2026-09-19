@@ -220,6 +220,12 @@
     "modules": {
       "elytra fly": {
         "_value": "鞘翅飞行",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "pitch40_takeoff_complete": "Pitch40 起飞完成",
         "pitch40_too_close_to_lower_bounds": "玩家必须至少高于下界高度 40 格！",
         "pitch40_no_usable_elytra": "未找到可用于起飞的鞘翅！",
@@ -328,7 +334,10 @@
           "color": "颜色",
           "scoreboard": "计分板"
         },
-        "anti cheat": "反作弊",
+        "anti cheat": {
+          "_value": "反作弊",
+          "rotation": "转头"
+        },
         "appearance": {
           "_value": "外观",
           "uzawa reisa": "宇泽玲纱"
@@ -371,6 +380,11 @@
         "replace minecraft font": "替换 Minecraft 字体",
         "close gui on outside": "点击空白关闭 GUI",
         "dropdown hints": "瀑布式提示词",
+        "rotation scope": {
+          "_value": "转头范围",
+          "global": "全局",
+          "custom": "自定义"
+        },
         "rotation mode": {
           "_value": "转头模式",
           "silent": "静默",
@@ -400,6 +414,9 @@
           "fruitsalad": "水果沙拉",
           "monochrome": "单色"
         },
+        "liquid glass": "液态玻璃",
+        "glass opacity": "玻璃透明度",
+        "background opacity": "背景透明度",
         "custom icon": {
           "_value": "自定义图标",
           "vanilla": "原版",
@@ -804,6 +821,12 @@
       },
       "auto mend": {
         "_value": "自动修补",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "switch mode": {
           "_value": "切换模式",
           "normal": "普通",
@@ -813,6 +836,12 @@
       },
       "auto throw": {
         "_value": "自动投掷",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "min range": "最小范围",
         "max range": "最大范围",
         "fov": "视野角度",
@@ -894,6 +923,12 @@
       },
       "crystal blocker": {
         "_value": "水晶阻断",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "range": "范围",
         "rotate": {
           "_value": "转头",
@@ -912,6 +947,12 @@
       },
       "feet trap": {
         "_value": "围脚",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "toggle on move": "移动时关闭",
         "toggle on jump": "跳跃时关闭",
         "in air": "空中放置",
@@ -941,13 +982,20 @@
       },
       "kill aura": {
         "_value": "杀戮光环",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "pause on eat": "进食时暂停",
         "pause on scaffold": "搭路时暂停",
         "hit select": "攻击筛选",
         "mode": {
           "_value": "模式",
           "onepointeight": "1.8",
-          "onepointnineplus": "1.9+"
+          "onepointnineplus": "1.9+",
+          "spear": "长矛"
         },
         "target mode": {
           "_value": "目标模式",
@@ -963,7 +1011,7 @@
           "range": "范围"
         },
         "search range": "搜索范围",
-        "aim range": "瞄准范围",
+        "attack range": "攻击范围",
         "fov": "视野角度",
         "rotation speed": "旋转速度",
         "rotation priority": {
@@ -975,6 +1023,13 @@
           "highest": "最高"
         },
         "cps": "每秒点击数",
+        "mace": "重锤补刀",
+        "mace swap mode": {
+          "_value": "重锤切换模式",
+          "normal": "普通",
+          "silent": "静默",
+          "invswitch": "背包切换"
+        },
         "players": "玩家",
         "mobs": "怪物",
         "animals": "动物",
@@ -1030,6 +1085,12 @@
       },
       "key pearl": {
         "_value": "按键珍珠",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "activate key": "激活按键",
         "pause on eat": "进食时暂停",
         "delay": "延迟",
@@ -1039,6 +1100,12 @@
       },
       "mace aura": {
         "_value": "重锤光环",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "mode": {
           "_value": "模式",
           "normal": "普通",
@@ -1125,6 +1192,12 @@
       },
       "safe anchor": {
         "_value": "安全重生锚",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "shield": "护盾",
         "trigger key": "触发按键",
         "mode": {
@@ -1182,6 +1255,12 @@
       },
       "silent aim": {
         "_value": "静默瞄准",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "weapon only": "仅武器",
         "player": "玩家",
         "mob": "怪物",
@@ -1234,6 +1313,12 @@
       },
       "zealot crystal+": {
         "_value": "狂暴水晶+",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "general": "常规",
         "force place": "强制放置",
         "calculation": "计算",
@@ -1451,6 +1536,12 @@
       },
       "auto mlg": {
         "_value": "自动落地水",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "interact delay": "交互延迟",
         "collect delay ticks": "收水延迟刻数"
       },
@@ -1461,6 +1552,12 @@
       },
       "bed nuker": {
         "_value": "自动挖床",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "range": "范围",
         "through walls": "穿墙",
         "rotate": "转头",
@@ -1474,6 +1571,12 @@
       },
       "chest aura": {
         "_value": "箱子光环",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "chests": "箱子",
         "furnaces": "熔炉",
         "blast furnaces": "高炉",
@@ -1747,6 +1850,12 @@
       },
       "auto map": {
         "_value": "自动扫图",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "auto launch": "自动起飞",
         "spiral spacing": "螺旋间距",
         "points per lap": "每圈点数",
@@ -1854,6 +1963,12 @@
       },
       "scaffold": {
         "_value": "自动搭路",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "blacklisted blocks": "黑名单方块",
         "toggle on teleport": "传送时切换",
         "mode": {
@@ -1945,6 +2060,12 @@
       "stuck": "卡空",
       "target strafe": {
         "_value": "目标环绕",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "radius": "环绕半径",
         "points": "路径点数",
         "require jump": "需要跳跃",
@@ -1953,6 +2074,12 @@
       },
       "velocity": {
         "_value": "反击退",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "mode": {
           "_value": "模式",
           "cancel": "取消",
@@ -2100,6 +2227,12 @@
       },
       "free camera": {
         "_value": "自由视角",
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
         "speed": "移动速度",
         "speed scroll sensitivity": "滚轮调速灵敏度",
         "stay sneaking": "保持潜行",
