@@ -947,7 +947,8 @@
         "mode": {
           "_value": "Mode",
           "onepointeight": "1.8",
-          "onepointnineplus": "1.9+"
+          "onepointnineplus": "1.9+",
+          "spear": "Spear"
         },
         "target mode": {
           "_value": "Target Mode",
@@ -975,6 +976,13 @@
           "highest": "Highest"
         },
         "cps": "CPS",
+        "mace": "Mace",
+        "mace swap mode": {
+          "_value": "Mace Swap Mode",
+          "normal": "Normal",
+          "silent": "Silent",
+          "invswitch": "Inv Switch"
+        },
         "players": "Players",
         "mobs": "Mobs",
         "animals": "Animals",

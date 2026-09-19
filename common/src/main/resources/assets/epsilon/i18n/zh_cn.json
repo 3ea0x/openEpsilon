@@ -947,7 +947,8 @@
         "mode": {
           "_value": "模式",
           "onepointeight": "1.8",
-          "onepointnineplus": "1.9+"
+          "onepointnineplus": "1.9+",
+          "spear": "长矛"
         },
         "target mode": {
           "_value": "目标模式",
@@ -975,6 +976,13 @@
           "highest": "最高"
         },
         "cps": "每秒点击数",
+        "mace": "重锤补刀",
+        "mace swap mode": {
+          "_value": "重锤切换模式",
+          "normal": "普通",
+          "silent": "静默",
+          "invswitch": "背包切换"
+        },
         "players": "玩家",
         "mobs": "怪物",
         "animals": "动物",
