@@ -994,8 +994,7 @@
         "mode": {
           "_value": "模式",
           "onepointeight": "1.8",
-          "onepointnineplus": "1.9+",
-          "spear": "长矛"
+          "onepointnineplus": "1.9+"
         },
         "target mode": {
           "_value": "目标模式",
@@ -1269,6 +1268,38 @@
         "invisible": "隐身",
         "range": "范围",
         "fov": "视野角度"
+      },
+      "spear aura": {
+        "_value": "长矛光环",
+        "range": "范围",
+        "fov": "视野角度",
+        "rotation speed": "旋转速度",
+        "rotation priority": {
+          "_value": "旋转优先级",
+          "lowest": "最低",
+          "low": "低",
+          "medium": "中",
+          "high": "高",
+          "highest": "最高"
+        },
+        "rotation type": {
+          "_value": "转头方式",
+          "silent": "静默",
+          "snap": "快照",
+          "none": "不转头"
+        },
+        "players": "玩家",
+        "mobs": "怪物",
+        "animals": "动物",
+        "villagers": "村民",
+        "invisible": "隐身",
+        "mace": "重锤",
+        "mace swap mode": {
+          "_value": "重锤切换模式",
+          "normal": "普通",
+          "silent": "静默",
+          "invswitch": "背包切换"
+        }
       },
       "spear kill": {
         "_value": "长矛击杀",

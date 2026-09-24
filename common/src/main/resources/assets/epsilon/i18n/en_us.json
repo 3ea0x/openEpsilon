@@ -994,8 +994,7 @@
         "mode": {
           "_value": "Mode",
           "onepointeight": "1.8",
-          "onepointnineplus": "1.9+",
-          "spear": "Spear"
+          "onepointnineplus": "1.9+"
         },
         "target mode": {
           "_value": "Target Mode",
@@ -1269,6 +1268,38 @@
         "invisible": "Invisible",
         "range": "Range",
         "fov": "FOV"
+      },
+      "spear aura": {
+        "_value": "Spear Aura",
+        "range": "Range",
+        "fov": "FOV",
+        "rotation speed": "Rotation Speed",
+        "rotation priority": {
+          "_value": "Rotation Priority",
+          "lowest": "Lowest",
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "highest": "Highest"
+        },
+        "rotation type": {
+          "_value": "Rotation Type",
+          "silent": "Silent",
+          "snap": "Snap",
+          "none": "None"
+        },
+        "players": "Players",
+        "mobs": "Mobs",
+        "animals": "Animals",
+        "villagers": "Villagers",
+        "invisible": "Invisible",
+        "mace": "Mace",
+        "mace swap mode": {
+          "_value": "Mace Swap Mode",
+          "normal": "Normal",
+          "silent": "Silent",
+          "invswitch": "Inv Switch"
+        }
       },
       "spear kill": {
         "_value": "Spear Kill",

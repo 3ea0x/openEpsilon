@@ -66,6 +66,7 @@ public class ModuleManager {
         addModule(SafeAnchor.INSTANCE);
         addModule(SafeCrystal.INSTANCE);
         addModule(SilentAim.INSTANCE);
+        addModule(SpearAura.INSTANCE);
         addModule(SpearKill.INSTANCE);
         addModule(TriggerBot.INSTANCE);
         addModule(ZealotCrystalPlus.INSTANCE);

@@ -4,10 +4,8 @@ import com.github.epsilon.events.bus.EventBus;
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.bus.listeners.ConsumerListener;
 import com.github.epsilon.events.impl.ClientTickEvent;
-import com.github.epsilon.events.impl.PacketEvent;
 import com.github.epsilon.events.impl.PlayerTickEvent;
 import com.github.epsilon.events.impl.Render3DEvent;
-import com.github.epsilon.interfaces.ClientboundEntityEventPacketAccessor;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
@@ -33,13 +31,10 @@ import com.github.epsilon.utils.timer.TimerUtils;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.PlayerInfo;
-import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
-import net.minecraft.tags.ItemTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Items;
@@ -55,17 +50,8 @@ public class KillAura extends Module {
 
     public static final KillAura INSTANCE = new KillAura();
 
-    /** 长矛模式在目标 3 格以内不进行静默追踪，避免贴脸转头。 */
-    private static final double SPEAR_MIN_TRACK_DISTANCE = 3.0;
-
     /** 重锤补刀只在摔落高度大于 3 格时触发。 */
     private static final double MACE_MIN_FALL_DISTANCE = 3.0;
-
-    /** 长矛 kinetic 命中包来自网络线程，先转成客户端 tick 消费的状态。 */
-    private volatile boolean spearHitPending;
-    private volatile int localPlayerId = -1;
-    /** 长矛命中后延迟 1 tick 再补重锤，避免和 kinetic 命中同一 tick 处理。 */
-    private int spearMaceDelay;
 
     private KillAura() {
         super("Kill Aura", Category.COMBAT);
@@ -82,8 +68,7 @@ public class KillAura extends Module {
 
     private enum Mode {
         OnePointEight,
-        OnePointNinePlus,
-        Spear
+        OnePointNinePlus
     }
 
     private enum TargetMode {
@@ -192,12 +177,6 @@ public class KillAura extends Module {
     private void onClientTick(ClientTickEvent.Pre event) {
         if (nullCheck()) return;
 
-        localPlayerId = mc.player.getId();
-        if (!mode.is(Mode.Spear)) {
-            spearHitPending = false;
-            spearMaceDelay = 0;
-        }
-
         if (!esp.getValue() || !espMode.is(ESPMode.Deobf)) {
             DeobfESP.clear();
         }
@@ -262,23 +241,11 @@ public class KillAura extends Module {
 
         target = targets.get(targetIndex);
 
-        if (mode.is(Mode.Spear) && spearMaceDelay <= 0) {
-            if (!isUsingSpear() || RotationUtils.getEyeDistanceToEntity(target) <= SPEAR_MIN_TRACK_DISTANCE) {
-                // 不蓄力或目标贴脸时不追踪；重锤补刀待执行时例外，需要朝向目标。
-                return;
-            }
-        }
-
         Rot2f calculate = RotationUtils.calculate(target, true, attackRange.getValue());
         if (RaytraceUtils.raytrace(calculate, attackRange.getValue()).getType() == HitResult.Type.BLOCK) return;
         RotationManager.request(rotationType.getValue(), calculate, rotationSpeed.getValue(), rotation -> RaytraceUtils.raytrace(rotation, attackRange.getValue()) instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() == target, rotationPriority.getValue());
 
-        if (mode.is(Mode.Spear)) {
-            // 长矛模式只做静默瞄准，攻击由玩家长按蓄力后手动释放。
-            return;
-        }
-
-        if (hitSelect.getValue() && target instanceof Player player && !AntiBot.INSTANCE.isBot(player) && !TargetManager.INSTANCE.isSameTeam(player) && velocity.attackQueue <= 0) {
+        if (hitSelect.getValue() && isTargetInAttackRange() && target instanceof Player player && !AntiBot.INSTANCE.isBot(player) && !TargetManager.INSTANCE.isSameTeam(player) && velocity.attackQueue <= 0) {
             ClientPacketListener connection = mc.getConnection();
             PlayerInfo localPlayerInfo = connection == null ? null : connection.getPlayerInfo(mc.player.getUUID());
             int latencyTicks = localPlayerInfo == null ? 0 : localPlayerInfo.getLatency() / 50;
@@ -302,48 +269,13 @@ public class KillAura extends Module {
     }
 
     @EventHandler
-    private void onPacketReceive(PacketEvent.Receive event) {
-        // 长矛 kinetic 命中的实体事件包在 netty 线程触发，只记录状态，主线程再补重锤。
-        if (!isEnabled() || !mode.is(Mode.Spear) || !(event.getPacket() instanceof ClientboundEntityEventPacket packet)) {
-            return;
-        }
-        if (packet.getEventId() != EntityEvent.KINETIC_HIT) return;
-        if (packet instanceof ClientboundEntityEventPacketAccessor accessor
-                && accessor.epsilon$getEntityId() == localPlayerId) {
-            spearHitPending = true;
-        }
-    }
-
-    @EventHandler
     private void onPlayerTick(PlayerTickEvent.Pre event) {
-        if (mode.is(Mode.Spear)) {
-            // 长矛模式不自动攻击，瞄准由 onClientTick 的静默旋转处理。
-            attacks = 0;
-            if (spearHitPending) {
-                spearHitPending = false;
-                // 先结束长矛蓄力，并延迟 1 tick 再补重锤，避免和 kinetic 命中同一 tick 处理。
-                if (isUsingSpear()) {
-                    mc.gameMode.releaseUsingItem(mc.player);
-                }
-                spearMaceDelay = 1;
-            } else if (spearMaceDelay > 0 && --spearMaceDelay == 0) {
-                // 攻击前再确认一次已松开长矛，避免按住右键重新蓄力时打断补刀。
-                if (isUsingSpear()) {
-                    mc.gameMode.releaseUsingItem(mc.player);
-                }
-                if (target != null && target.isAlive()) {
-                    // 补刀前先把朝向对准目标，否则服务端会因朝向不对拒绝这次攻击。
-                    forceAimAtTarget(target);
-                    // 长矛 kinetic 命中后补一次重锤，复用统一的重锤切换逻辑。
-                    attackWithMace(target);
-                }
-            }
-            return;
-        }
         while (attacks > 0) {
             attacks--;
             if (pauseOnEat.getValue() && PlayerUtils.isEating() || NoSlowdown.INSTANCE.isWorking()) return;
             if (target == null || !target.isAlive()) return;
+            // 超出攻击范围时只保留 onClientTick 的普通静默瞄准，不要发额外 Rot 包触发 Timer。
+            if (!isTargetInAttackRange()) return;
 
             HitResult hitResult = RotationManager.INSTANCE.getHitResult();
             if (!(hitResult instanceof EntityHitResult currentHit && currentHit.getEntity() == target)) {
@@ -368,7 +300,7 @@ public class KillAura extends Module {
     @EventHandler
     private void onRender3D(Render3DEvent event) {
         if (target != null && Velocity.INSTANCE.attackQueue <= 0) {
-            if (!hitSelect.getValue() || !(target instanceof Player)) {
+            if (isTargetInAttackRange() && (!hitSelect.getValue() || !(target instanceof Player))) {
                 switch (mode.getValue()) {
                     case OnePointNinePlus -> {
                         if (attacks == 0 && mc.player.getAttackStrengthScale(0.5f) >= 1.0f) {
@@ -381,9 +313,6 @@ public class KillAura extends Module {
                             attacks++;
                             lastAttackTime = time;
                         }
-                    }
-                    case Spear -> {
-                        // 长矛模式由玩家长按蓄力触发，KillAura 只负责转头，不自动攻击。
                     }
                 }
             }
@@ -495,6 +424,13 @@ public class KillAura extends Module {
     }
 
     /**
+     * 当前目标是否在 Attack Range 内；超出时只瞄准不攻击。
+     */
+    private boolean isTargetInAttackRange() {
+        return target != null && RotationUtils.getEyeDistanceToEntity(target) <= attackRange.getValue();
+    }
+
+    /**
      * 静默对准目标：只发服务端旋转包并让托管旋转/头部跟随，不移动客户端视角。
      */
     private void forceAimAtTarget(Entity aimTarget) {
@@ -520,21 +456,11 @@ public class KillAura extends Module {
         mc.player.setYHeadRot(rotations.getYaw());
     }
 
-    /**
-     * 玩家是否正在长按蓄力长矛。
-     */
-    private boolean isUsingSpear() {
-        return mc.player != null && mc.player.isUsingItem() && mc.player.getUseItem().is(ItemTags.SPEARS);
-    }
-
     private void resetState() {
         targets = null;
         target = null;
         attacks = 0;
         lastAttackTime = 0L;
-        spearHitPending = false;
-        spearMaceDelay = 0;
-        localPlayerId = -1;
     }
 
 }
