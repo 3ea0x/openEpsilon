@@ -10,12 +10,12 @@ import com.github.epsilon.graphics.text.ITextRenderer;
 import com.github.epsilon.graphics.text.TextGlitchEffect;
 import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.utils.render.ScissorUtils;
+import com.mojang.blaze3d.buffers.Std140Builder;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.buffers.Std140Builder;
-import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.commands.RenderPass;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 import net.minecraft.client.renderer.DynamicGpuDataStorage;
 import net.minecraft.util.ARGB;
@@ -218,7 +218,9 @@ public class TtfTextRenderer implements ITextRenderer {
         return new TextLayout(runs, glyphCount, maxLine, complete, revision, atlasRevision);
     }
 
-    /** 空白、控制、格式与代理码位本身没有墨迹，缺字时不画占位框。 */
+    /**
+     * 空白、控制、格式与代理码位本身没有墨迹，缺字时不画占位框。
+     */
     private static boolean hasNoInk(int codepoint) {
         int type = Character.getType(codepoint);
         return Character.isWhitespace(codepoint)

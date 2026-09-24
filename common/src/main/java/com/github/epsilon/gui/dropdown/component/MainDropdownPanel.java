@@ -1,6 +1,5 @@
 package com.github.epsilon.gui.dropdown.component;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.github.epsilon.Constants;
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
 import com.github.epsilon.graphics.text.IconChars;
@@ -13,6 +12,7 @@ import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.util.Mth;
 
 import java.util.ArrayList;

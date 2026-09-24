@@ -1,6 +1,5 @@
 package com.github.epsilon.modules.impl;
 
-import com.mojang.blaze3d.Blaze3D;
 import com.github.epsilon.assets.ffmpeg.FFmpegNativePlatform;
 import com.github.epsilon.assets.i18n.EpsilonLanguage;
 import com.github.epsilon.assets.i18n.EpsilonLanguageManager;
@@ -20,6 +19,7 @@ import com.github.epsilon.modules.Module;
 import com.github.epsilon.settings.SettingGroup;
 import com.github.epsilon.settings.impl.*;
 import com.github.epsilon.utils.client.PlatformRequirement;
+import com.mojang.blaze3d.Blaze3D;
 import com.mojang.blaze3d.platform.IconSet;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.SharedConstants;

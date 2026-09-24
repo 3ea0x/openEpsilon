@@ -1,6 +1,5 @@
 package com.github.epsilon.gui.panel.component.setting;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.github.epsilon.graphics.renderers.TextRenderer;
 import com.github.epsilon.graphics.text.IconChars;
 import com.github.epsilon.graphics.text.StaticFontLoader;
@@ -11,6 +10,7 @@ import com.github.epsilon.gui.panel.component.SettingRow;
 import com.github.epsilon.gui.theme.MD3Theme;
 import com.github.epsilon.gui.utils.RegistryListUi;
 import com.github.epsilon.settings.impl.RegistryListSetting;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.MouseButtonEvent;
 

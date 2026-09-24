@@ -1,9 +1,9 @@
 package com.github.epsilon.gui.screen;
 
-import com.mojang.blaze3d.Blaze3D;
 import com.github.epsilon.assets.i18n.EpsilonLanguage;
 import com.github.epsilon.managers.ConfigManager;
 import com.github.epsilon.modules.impl.ClientSetting;
+import com.mojang.blaze3d.Blaze3D;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;

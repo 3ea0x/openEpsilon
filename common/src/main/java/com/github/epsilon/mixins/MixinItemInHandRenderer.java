@@ -133,15 +133,6 @@ public abstract class MixinItemInHandRenderer {
         return shaders.isEnabled() && shaders.hands.getValue() ? shaders.getOutlineColor(shaders.handsShader) : outlineColor;
     }
 
-    /**
-     * 解析当前手对应的手臂。
-     *
-     * <p>26.3 的手部渲染改由渲染状态驱动，主手信息需要从 {@code AvatarRenderState} 读取。
-     *
-     * @param playerState 玩家渲染状态
-     * @param hand 当前渲染的手
-     * @return 对应手臂，状态缺失时返回 null
-     */
     @Unique
     private HumanoidArm resolveArm(PlayerRenderState playerState, InteractionHand hand) {
         AvatarRenderState avatarRenderState = playerState.avatarRenderState;

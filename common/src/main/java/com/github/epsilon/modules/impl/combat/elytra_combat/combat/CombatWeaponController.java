@@ -6,6 +6,7 @@ import com.github.epsilon.utils.player.InvUtils;
 import com.github.epsilon.utils.player.PlayerUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -14,7 +15,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.KineticWeapon;
-import net.minecraft.core.component.DataComponents;
 
 import java.util.Set;
 import java.util.function.Predicate;
@@ -22,10 +22,12 @@ import java.util.function.Predicate;
 /**
  * ElytraCombat 独立武器控制器，不依赖 AutoWeapon、MaceAura 或 SpearKill。
  */
-public final class CombatWeaponController {
+public class CombatWeaponController {
 
     private static final Minecraft mc = Minecraft.getInstance();
-    /** 26.3 全部长矛材质；识别 kinetic 组件时不依赖具体物品名硬编码延迟。 */
+    /**
+     * 26.3 全部长矛材质；识别 kinetic 组件时不依赖具体物品名硬编码延迟。
+     */
     private static final Set<Item> SPEARS = Set.of(
             Items.WOODEN_SPEAR,
             Items.STONE_SPEAR,
@@ -35,7 +37,9 @@ public final class CombatWeaponController {
             Items.DIAMOND_SPEAR,
             Items.NETHERITE_SPEAR
     );
-    /** 长矛蓄力期间的临时槽位状态，stopSpearUse 必须按相反顺序恢复。 */
+    /**
+     * 长矛蓄力期间的临时槽位状态，stopSpearUse 必须按相反顺序恢复。
+     */
     private static int spearSavedHotbarSlot = -1;
     private static boolean spearInventorySwapped;
 

@@ -3,12 +3,7 @@ package com.github.epsilon.gui.dropdown.component;
 import com.github.epsilon.gui.dropdown.DropdownScreen;
 import com.github.epsilon.gui.dropdown.DropdownTheme;
 import com.github.epsilon.gui.dropdown.ReisaDropdownCompanion;
-import com.github.epsilon.gui.dropdown.widget.ColorWidget;
-import com.github.epsilon.gui.dropdown.widget.DoubleSliderWidget;
-import com.github.epsilon.gui.dropdown.widget.IntSliderWidget;
-import com.github.epsilon.gui.dropdown.widget.KeybindWidget;
-import com.github.epsilon.gui.dropdown.widget.SettingWidget;
-import com.github.epsilon.gui.dropdown.widget.StringWidget;
+import com.github.epsilon.gui.dropdown.widget.*;
 import com.github.epsilon.gui.lib.UiRect;
 import com.github.epsilon.gui.lib.UiTextMetrics;
 import com.github.epsilon.gui.lib.UiTree;
@@ -37,7 +32,7 @@ import java.util.function.Predicate;
  * 绘制坐标使用调用方 scope 的局部坐标，命中测试使用「局部坐标 + hitOffset」得到的绝对坐标，
  * 因此控件缓存的绝对位置可以直接参与命中。
  */
-public final class SettingSectionRenderer {
+public class SettingSectionRenderer {
 
     private final List<Node> nodes;
     private final Map<String, Animation> hoverAnimations = new HashMap<>();

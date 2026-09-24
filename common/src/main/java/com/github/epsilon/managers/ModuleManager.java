@@ -74,7 +74,6 @@ public class ModuleManager {
 
         // Player
         addModule(AutoArmor.INSTANCE);
-        addModule(AutoCrossbowRelease.INSTANCE);
         addModule(AutoFirework.INSTANCE);
         addModule(SmartTweak.INSTANCE);
         addModule(AutoKouZi.INSTANCE);

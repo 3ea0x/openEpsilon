@@ -11,7 +11,6 @@ import com.mojang.authlib.GameProfile;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
@@ -73,7 +72,6 @@ public class MixinLocalPlayer extends AbstractClientPlayer {
         EventBus.INSTANCE.post(new AfterSendPositionEvent());
     }
 
-    // 26.3 移除了 LocalPlayer#swing 重写，挥手事件改由 LivingEntity#swing 统一处理。
     @Inject(method = "displayItemActivation(Lnet/minecraft/world/item/ItemStack;)V", at = @At("HEAD"), cancellable = true)
     private void onDisplayItemActivation(ItemStack itemStack, CallbackInfo ci) {
         if (TotemAnimation.INSTANCE.isEnabled()) {

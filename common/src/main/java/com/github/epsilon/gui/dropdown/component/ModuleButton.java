@@ -1,6 +1,5 @@
 package com.github.epsilon.gui.dropdown.component;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
 import com.github.epsilon.graphics.text.IconChars;
 import com.github.epsilon.graphics.text.StaticFontLoader;
@@ -18,11 +17,11 @@ import com.github.epsilon.settings.impl.*;
 import com.github.epsilon.utils.client.KeybindUtils;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.util.Mth;
 
 import java.awt.*;
-import java.util.*;
-import java.util.List;
+import java.util.Locale;
 
 public class ModuleButton extends Component {
 
@@ -281,9 +280,11 @@ public class ModuleButton extends Component {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (listeningKeybind) {
-            module.setKeyBind(keyCode == 256 || keyCode == 259 ? KeybindUtils.NONE : keyCode);
+            module.setKeyBind(keyCode == InputConstants.KEY_ESCAPE || keyCode == InputConstants.KEY_BACKSPACE
+                    ? KeybindUtils.NONE
+                    : keyCode);
             listeningKeybind = false;
-            DropdownScreen.INSTANCE.react(keyCode == 256
+            DropdownScreen.INSTANCE.react(keyCode == InputConstants.KEY_ESCAPE
                     ? ReisaDropdownCompanion.Action.CANCEL
                     : ReisaDropdownCompanion.Action.CONFIRM);
             return true;

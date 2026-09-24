@@ -1,6 +1,5 @@
 package com.github.epsilon.gui.panel;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.github.epsilon.graphics.LuminRenderSystem;
 import com.github.epsilon.graphics.renderers.TextRenderer;
 import com.github.epsilon.graphics.text.ttf.TtfFontLoader;
@@ -21,6 +20,7 @@ import com.github.epsilon.gui.theme.MD3Theme;
 import com.github.epsilon.gui.utils.ModuleTooltip;
 import com.github.epsilon.managers.TranslationManager;
 import com.github.epsilon.modules.impl.ClientSetting;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.IMEPreeditOverlay;
 import net.minecraft.client.gui.screens.Screen;
@@ -333,7 +333,7 @@ public class PanelScreen extends Screen {
             dirtyState.markAllDirty();
             return true;
         }
-        if (event.key() == 256) {
+        if (event.key() == InputConstants.KEY_ESCAPE) {
             onClose();
             return true;
         }

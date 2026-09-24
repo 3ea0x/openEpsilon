@@ -1,9 +1,9 @@
 package com.github.epsilon.accounts;
 
-import com.mojang.blaze3d.Blaze3D;
 import com.github.epsilon.Constants;
 import com.github.epsilon.utils.network.Http;
 import com.google.gson.annotations.SerializedName;
+import com.mojang.blaze3d.Blaze3D;
 import com.mojang.datafixers.util.Pair;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;

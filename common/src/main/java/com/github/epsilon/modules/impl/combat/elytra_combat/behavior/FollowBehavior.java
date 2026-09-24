@@ -13,7 +13,7 @@ import net.minecraft.world.phys.Vec3;
  * <p>目标落地或被方块支撑时把瞄准点抬高 {@code Follow Ground Height}，避免贴地飞行；
  * 行为只生成期望速度，实际直飞、绕障或 A* 由 {@link FlightIntentPlanner} 决定。</p>
  */
-public final class FollowBehavior implements ElytraCombatBehavior {
+public class FollowBehavior implements ElytraCombatBehavior {
 
     @Override
     public void reset() {

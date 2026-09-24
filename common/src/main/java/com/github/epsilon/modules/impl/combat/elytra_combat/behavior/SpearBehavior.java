@@ -7,8 +7,8 @@ import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightIntent;
 import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightIntentPlanner;
 import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightPlanConfig;
 import com.github.epsilon.modules.impl.combat.elytra_combat.flight.LocalFlightAvoidance;
-import com.github.epsilon.modules.impl.combat.elytra_combat.target.TargetSnapshot;
 import com.github.epsilon.modules.impl.combat.elytra_combat.target.TargetAction;
+import com.github.epsilon.modules.impl.combat.elytra_combat.target.TargetSnapshot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
@@ -19,16 +19,24 @@ import net.minecraft.world.phys.Vec3;
  * <p>通过持续使用长矛组件等待 delayTicks，冲锋只修改 FlightIntent；不发送瞬移序列。
  * KINETIC_HIT 包确认命中后进入 PULL_OVER。</p>
  */
-public final class SpearBehavior implements ElytraCombatBehavior {
+public class SpearBehavior implements ElytraCombatBehavior {
 
     private enum State {
-        /** 初始状态：尝试手持长矛并开始蓄力。 */
+        /**
+         * 初始状态：尝试手持长矛并开始蓄力。
+         */
         NONE,
-        /** 远距离追击目标眼部预测位置。 */
+        /**
+         * 远距离追击目标眼部预测位置。
+         */
         FOLLOW,
-        /** 进入长矛交战距离，处理冲锋和反向长矛。 */
+        /**
+         * 进入长矛交战距离，处理冲锋和反向长矛。
+         */
         NEAR_FOLLOW,
-        /** 命中后反向拉开距离，等待 kinetic 冷却。 */
+        /**
+         * 命中后反向拉开距离，等待 kinetic 冷却。
+         */
         PULL_OVER
     }
 

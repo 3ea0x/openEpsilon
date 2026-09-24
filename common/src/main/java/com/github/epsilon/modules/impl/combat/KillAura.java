@@ -138,7 +138,7 @@ public class KillAura extends Module {
     private final BoolSetting others = boolSetting("Others", false);
     private final BoolSetting invisible = boolSetting("Invisible", true);
 
-    private final BoolSetting swingHand = boolSetting("SwingHand", true);
+    private final BoolSetting swingHand = boolSetting("Swing Hand", true);
     private final BoolSetting esp = boolSetting("ESP", true);
     private final EnumSetting<ESPMode> espMode = enumSetting("ESP Mode", ESPMode.Circle, esp::getValue);
     public final EnumSetting<DeobfESP.TextureMode> deobfMode = enumSetting("Deobf Mode", DeobfESP.TextureMode.Mengcha, () -> esp.getValue() && espMode.is(ESPMode.Deobf));

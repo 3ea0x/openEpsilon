@@ -4,19 +4,21 @@ import com.github.epsilon.assets.resources.ResourceLocationUtils;
 import com.github.epsilon.graphics.LuminBindGroupLayouts;
 import com.github.epsilon.graphics.LuminRenderSystem;
 import com.github.epsilon.modules.impl.render.Shaders;
-import com.mojang.renderpearl.api.GpuFormat;
-import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
-import com.mojang.blaze3d.pipeline.*;
-import com.mojang.renderpearl.api.pipeline.*;
-import com.mojang.renderpearl.api.pipeline.BlendFactor;
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.GpuFormat;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.CommandEncoder;
 import com.mojang.renderpearl.api.commands.RenderPass;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.pipeline.BlendFactor;
+import com.mojang.renderpearl.api.pipeline.BlendFunction;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuSampler;
-import com.mojang.renderpearl.api.pipeline.ColorTargetState;
 import net.minecraft.client.renderer.DynamicGpuDataStorage;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -135,7 +137,7 @@ public class ShaderManager {
      * 因此需要在 LevelRenderer 渲染结束后自行处理描边目标并混回主目标。
      *
      * @param outlineTarget 实体描边目标
-     * @param mainTarget 主渲染目标
+     * @param mainTarget    主渲染目标
      */
     public void processEntityOutlineTarget(RenderTarget outlineTarget, RenderTarget mainTarget) {
         if (!Shaders.INSTANCE.isEnabled() || outlineTarget == null || mainTarget == null || mainTarget.getColorTextureView() == null) {

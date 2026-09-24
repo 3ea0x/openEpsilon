@@ -19,7 +19,9 @@ import static com.github.epsilon.Constants.mc;
 
 public class TheAlteningAccount extends Account<TheAlteningAccount> implements TokenAccount {
 
-    /** TheAltening 的账号接口地址，认证请求与 discovery 文档都在该主机下。 */
+    /**
+     * TheAltening 的账号接口地址，认证请求与 discovery 文档都在该主机下。
+     */
     private static final String API_HOST = "http://authserver.thealtening.com";
     /**
      * authlib 10 的环境只保留 discovery 地址与名称。

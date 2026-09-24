@@ -5,10 +5,10 @@ import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
 import com.github.epsilon.settings.impl.BoolSetting;
+import com.mojang.renderpearl.api.pipeline.ColorTargetState;
+import com.mojang.renderpearl.api.pipeline.CompareOp;
 import com.mojang.renderpearl.api.pipeline.DepthStencilState;
 import com.mojang.renderpearl.api.pipeline.RenderPipeline;
-import com.mojang.renderpearl.api.pipeline.CompareOp;
-import com.mojang.renderpearl.api.pipeline.ColorTargetState;
 import net.minecraft.client.renderer.BindGroupLayouts;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
@@ -40,6 +40,13 @@ public class Chams extends Module {
     private final BoolSetting others = boolSetting("Others", false);
 
     private final ThreadLocal<Boolean> submittingPlayer = ThreadLocal.withInitial(() -> false);
+
+    /**
+     * 26.3 把实体提交使用的 alwaysOnTop 相位合并进了 alwaysOnTopGizmos，
+     * 而 {@code LevelRenderer} 只在本帧存在 always-on-top gizmo 时才执行该相位。
+     * 这里记录本帧是否有几何被重定向到该相位，供 MixinLevelRenderer 放行，避免实体提交被整帧丢弃。
+     */
+    private boolean hasAlwaysOnTopSubmits;
 
     private static final RenderPipeline PIPELINE = RenderPipeline.builder(RenderPipelines.ENTITY_SNIPPET)
             .withLocation("pipeline/epsilon_entity_chams")
@@ -74,6 +81,18 @@ public class Chams extends Module {
 
     public void setSubmittingPlayer(boolean submittingPlayer) {
         this.submittingPlayer.set(submittingPlayer);
+    }
+
+    public void markAlwaysOnTopSubmit() {
+        this.hasAlwaysOnTopSubmits = true;
+    }
+
+    public boolean hasAlwaysOnTopSubmits() {
+        return this.hasAlwaysOnTopSubmits;
+    }
+
+    public void resetAlwaysOnTopSubmits() {
+        this.hasAlwaysOnTopSubmits = false;
     }
 
     public boolean isValidEntity(Entity entity) {

@@ -25,9 +25,6 @@ public class PlayerUtils {
      * @param hand 挥手使用的手
      */
     public static void swingHand(InteractionHand hand) {
-        if (mc.player == null) {
-            return;
-        }
         mc.player.swing(hand, SwingAnimation.DEFAULT, false);
     }
 

@@ -3,14 +3,7 @@ package com.github.epsilon.modules.impl.combat.elytra_combat;
 import com.github.epsilon.Constants;
 import com.github.epsilon.events.bus.EventHandler;
 import com.github.epsilon.events.bus.EventPriority;
-import com.github.epsilon.events.impl.AttackEntityEvent;
-import com.github.epsilon.events.impl.FallFlyingMovementEvent;
-import com.github.epsilon.events.impl.KeyPressEvent;
-import com.github.epsilon.events.impl.KeyboardInputEvent;
-import com.github.epsilon.events.impl.MousePressEvent;
-import com.github.epsilon.events.impl.PacketEvent;
-import com.github.epsilon.events.impl.PlayerTickEvent;
-import com.github.epsilon.events.impl.Render3DEvent;
+import com.github.epsilon.events.impl.*;
 import com.github.epsilon.graphics.schedulers.render3d.Render3DScheduler;
 import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
@@ -22,11 +15,7 @@ import com.github.epsilon.modules.impl.combat.elytra_combat.behavior.MaceBehavio
 import com.github.epsilon.modules.impl.combat.elytra_combat.behavior.SpearBehavior;
 import com.github.epsilon.modules.impl.combat.elytra_combat.combat.CombatHitTracker;
 import com.github.epsilon.modules.impl.combat.elytra_combat.combat.CombatWeaponController;
-import com.github.epsilon.modules.impl.combat.elytra_combat.flight.ElytraDirectionSolver;
-import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightIntent;
-import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightIntentPlanner;
-import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightPlanConfig;
-import com.github.epsilon.modules.impl.combat.elytra_combat.flight.LocalFlightAvoidance;
+import com.github.epsilon.modules.impl.combat.elytra_combat.flight.*;
 import com.github.epsilon.modules.impl.combat.elytra_combat.target.PredictorMode;
 import com.github.epsilon.modules.impl.combat.elytra_combat.target.TargetMotionTracker;
 import com.github.epsilon.modules.impl.combat.elytra_combat.target.TargetSnapshot;
@@ -60,9 +49,13 @@ public class ElytraCombat extends Module {
     public static final ElytraCombat INSTANCE = new ElytraCombat();
 
     public enum ControlMode {
-        /** 通过 yaw/pitch 和 WASD 输入控制，兼容原版滑翔物理。 */
+        /**
+         * 通过 yaw/pitch 和 WASD 输入控制，兼容原版滑翔物理。
+         */
         Input,
-        /** 在 FallFlyingMovementEvent 中直接覆盖当 tick 速度，作为实验模式。 */
+        /**
+         * 在 FallFlyingMovementEvent 中直接覆盖当 tick 速度，作为实验模式。
+         */
         DirectVelocity
     }
 
@@ -165,9 +158,13 @@ public class ElytraCombat extends Module {
     private final DoubleSetting renderWidth =
             doubleSetting("Render Width", 2.0, 0.5, 8.0, 0.5, render::getValue).group(sgRender);
 
-    /** 模式到状态机的固定映射；切换模式只替换引用，不重建行为对象。 */
+    /**
+     * 模式到状态机的固定映射；切换模式只替换引用，不重建行为对象。
+     */
     private final Map<ElytraCombatMode, ElytraCombatBehavior> behaviors = new EnumMap<>(ElytraCombatMode.class);
-    /** 目标轨迹预测、命中包解析和飞行规划三个纯数据组件。 */
+    /**
+     * 目标轨迹预测、命中包解析和飞行规划三个纯数据组件。
+     */
     private final TargetMotionTracker motionTracker = new TargetMotionTracker();
     private final CombatHitTracker hitTracker = new CombatHitTracker();
     private final FlightIntentPlanner flightPlanner = new FlightIntentPlanner();
@@ -176,7 +173,9 @@ public class ElytraCombat extends Module {
     private LivingEntity target;
     private ElytraCombatInput controlInput;
     private FlightIntent latestIntent = FlightIntent.idle(Vec3.ZERO);
-    /** 记录模块启用前的 ElytraFly 状态，关闭时只恢复被本模块改动过的部分。 */
+    /**
+     * 记录模块启用前的 ElytraFly 状态，关闭时只恢复被本模块改动过的部分。
+     */
     private boolean capturedElytraEnabled;
     private ElytraFlightModes capturedElytraMode;
     private boolean changedElytraControl;

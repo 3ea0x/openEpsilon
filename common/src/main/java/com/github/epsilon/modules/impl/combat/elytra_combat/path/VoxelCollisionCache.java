@@ -8,14 +8,18 @@ import net.minecraft.core.BlockPos;
  * <p>细体素使用世界坐标取模寻址；槽位同时保存坐标标签，因此滚动窗口复用槽位时，
  * 旧坐标不会被当成新坐标读取。</p>
  */
-public final class VoxelCollisionCache {
+public class VoxelCollisionCache {
 
-    /** UNKNOWN 与 BLOCKED 都视为不可通行，只有明确采样的 FREE 允许通过。 */
+    /**
+     * UNKNOWN 与 BLOCKED 都视为不可通行，只有明确采样的 FREE 允许通过。
+     */
     public static final byte UNKNOWN = 0;
     public static final byte FREE = 1;
     public static final byte BLOCKED = 2;
 
-    /** 查询结果哨兵值，避免额外分配可选对象。 */
+    /**
+     * 查询结果哨兵值，避免额外分配可选对象。
+     */
     public static final long NO_BLOCK = Long.MIN_VALUE;
     public static final long OUTSIDE_WINDOW = Long.MAX_VALUE;
 
@@ -26,17 +30,23 @@ public final class VoxelCollisionCache {
     private final int mediumSide;
     private final int volume;
 
-    /** 细体素按世界坐标取模映射；positions 保存坐标标签，sampleVersions 防止旧样本覆盖新样本。 */
+    /**
+     * 细体素按世界坐标取模映射；positions 保存坐标标签，sampleVersions 防止旧样本覆盖新样本。
+     */
     private final byte[] states;
     private final long[] positions;
     private final long[] sampleVersions;
 
-    /** 5³ 粗粒度统计，用于快速判断大块区域是否全 FREE。 */
+    /**
+     * 5³ 粗粒度统计，用于快速判断大块区域是否全 FREE。
+     */
     private final short[] coarseValid;
     private final short[] coarseBlocked;
     private final long[] coarsePositions;
 
-    /** 每轴 2+2+1 的中间粒度统计，用于细粒度回退查询。 */
+    /**
+     * 每轴 2+2+1 的中间粒度统计，用于细粒度回退查询。
+     */
     private final short[] mediumValid;
     private final short[] mediumBlocked;
     private final long[] mediumPositions;

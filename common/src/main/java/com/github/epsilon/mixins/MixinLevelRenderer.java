@@ -5,20 +5,18 @@ import com.github.epsilon.events.impl.AfterRender3DEvent;
 import com.github.epsilon.events.impl.Render3DEvent;
 import com.github.epsilon.graphics.shaders.CustomSkyShader;
 import com.github.epsilon.managers.ShaderManager;
-import com.github.epsilon.modules.impl.render.CustomSky;
-import com.github.epsilon.modules.impl.render.MotionBlur;
-import com.github.epsilon.modules.impl.render.NoRender;
-import com.github.epsilon.modules.impl.render.Shaders;
+import com.github.epsilon.modules.impl.render.*;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
-import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.framegraph.FrameGraphBuilder;
 import com.mojang.blaze3d.framegraph.FramePass;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.resource.GraphicsResourceAllocator;
 import com.mojang.blaze3d.resource.ResourceHandle;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LevelTargetBundle;
 import net.minecraft.client.renderer.PostChain;
@@ -47,21 +45,30 @@ public class MixinLevelRenderer {
 
     @Inject(method = "render", at = @At("RETURN"))
     private void onPostRenderLevel(GraphicsResourceAllocator resourceAllocator, boolean renderOutline, CameraRenderState cameraState, GpuBufferSlice terrainFog, Vector4f fogColor, boolean shouldRenderSky, boolean consistentDepthRequired, CallbackInfo ci) {
-        // 26.3 的 render 不再接收 modelViewMatrix，关卡渲染直接用 cameraState.viewRotationMatrix。
         Matrix4fc modelViewMatrix = cameraState.viewRotationMatrix;
         MotionBlur.INSTANCE.captureFrame(cameraState, modelViewMatrix);
         PoseStack poseStack = new PoseStack();
         poseStack.mulPose(modelViewMatrix);
         EventBus.INSTANCE.post(new Render3DEvent(poseStack));
         EventBus.INSTANCE.post(new AfterRender3DEvent());
-        // 26.3 的实体描边合并在 LevelRenderer 内部完成：Shaders 启用时会取消原版后处理链，
-        // 因此这里在处理完描边目标后自行混回主目标。
         if (this.currentFrameRendersEntityOutline) {
-            ShaderManager.INSTANCE.processEntityOutlineTarget(
-                    ((LevelRenderer) (Object) this).entityOutlineTarget,
-                    mc.gameRenderer.mainRenderTarget()
-            );
+            ShaderManager.INSTANCE.processEntityOutlineTarget(((LevelRenderer) (Object) this).entityOutlineTarget, mc.gameRenderer.mainRenderTarget());
         }
+    }
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void onRenderLevelStart(GraphicsResourceAllocator resourceAllocator, boolean renderOutline, CameraRenderState cameraState, GpuBufferSlice terrainFog, Vector4f fogColor, boolean shouldRenderSky, boolean consistentDepthRequired, CallbackInfo ci) {
+        Chams.INSTANCE.resetAlwaysOnTopSubmits();
+    }
+
+    /**
+     * Chams 把匹配实体的几何重定向到 alwaysOnTopGizmos 相位，但 26.3 的 frameHasAlwaysOnTopGizmos 只统计 gizmo：
+     * 相位里只有 Chams 提交时该 pass 会被跳过，实体因此完全不渲染。这里补上放行条件，
+     * 让 Chams 复用原版“清空深度后绘制”的 pass，consistentDepthRequired 时的深度回写也一并沿用。
+     */
+    @ModifyReturnValue(method = "frameHasAlwaysOnTopGizmos", at = @At("RETURN"))
+    private boolean forceAlwaysOnTopPassForChams(boolean original) {
+        return original || Chams.INSTANCE.hasAlwaysOnTopSubmits();
     }
 
     @Inject(method = "addSkyPass(Lcom/mojang/blaze3d/framegraph/FrameGraphBuilder;Lnet/minecraft/client/renderer/state/level/CameraRenderState;Lcom/mojang/renderpearl/api/buffers/GpuBufferSlice;)V", at = @At("RETURN"), require = 0)

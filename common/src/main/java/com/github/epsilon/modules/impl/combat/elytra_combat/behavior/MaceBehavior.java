@@ -24,16 +24,24 @@ import java.util.List;
  *
  * <p>状态流转为 NONE -> PULL_UP -> FOLLOW -> WAIT_ATTACK。</p>
  */
-public final class MaceBehavior implements ElytraCombatBehavior {
+public class MaceBehavior implements ElytraCombatBehavior {
 
     private enum State {
-        /** 初始状态：根据当前高度差决定直接跟随还是先拉升。 */
+        /**
+         * 初始状态：根据当前高度差决定直接跟随还是先拉升。
+         */
         NONE,
-        /** 持续拉升到目标上方安全高度。 */
+        /**
+         * 持续拉升到目标上方安全高度。
+         */
         PULL_UP,
-        /** 空中跟随或搜索地面目标的攻击落点。 */
+        /**
+         * 空中跟随或搜索地面目标的攻击落点。
+         */
         FOLLOW,
-        /** 攻击后短暂等待，避免同一 tick 连续触发。 */
+        /**
+         * 攻击后短暂等待，避免同一 tick 连续触发。
+         */
         WAIT_ATTACK
     }
 

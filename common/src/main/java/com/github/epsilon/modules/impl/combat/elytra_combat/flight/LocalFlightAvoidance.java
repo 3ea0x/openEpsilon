@@ -10,9 +10,11 @@ import net.minecraft.world.phys.Vec3;
  *
  * <p>直线航段不可用时，只搜索有限的 yaw/pitch 偏移，不会在客户端线程运行完整 A*。</p>
  */
-public final class LocalFlightAvoidance {
+public class LocalFlightAvoidance {
 
-    /** 围绕期望方向采样的固定夹角集合；组合数量有界，适合主线程运行。 */
+    /**
+     * 围绕期望方向采样的固定夹角集合；组合数量有界，适合主线程运行。
+     */
     private static final float[] YAW_OFFSETS = {-90.0f, -60.0f, -30.0f, 0.0f, 30.0f, 60.0f, 90.0f};
     private static final float[] PITCH_OFFSETS = {-40.0f, -25.0f, -10.0f, 0.0f, 10.0f, 25.0f, 40.0f};
 

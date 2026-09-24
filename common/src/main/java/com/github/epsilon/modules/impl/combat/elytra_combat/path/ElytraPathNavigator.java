@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>客户端线程只负责有界采样；专用工作线程运行基础 A* 并输出原始方块路径。</p>
  */
-public final class ElytraPathNavigator {
+public class ElytraPathNavigator {
 
     // 体素窗口与每 tick 采样预算；Data Size 必须是 5 的倍数。
     private static final int DEFAULT_DATA_SIZE = 50;
@@ -38,7 +38,9 @@ public final class ElytraPathNavigator {
     private static final double RESULT_MAX_TARGET_DISTANCE_SQR = 64.0;
     private static final double PATH_LOOKAHEAD_DISTANCE = 3.0;
     private final String workerThreadName;
-    /** 主线程写入请求，工作线程只保留最新一份；采样批次则按序号顺序消费。 */
+    /**
+     * 主线程写入请求，工作线程只保留最新一份；采样批次则按序号顺序消费。
+     */
     private final AtomicInteger requestedDataSize = new AtomicInteger(DEFAULT_DATA_SIZE);
     private final ConcurrentLinkedQueue<SampleBatch> sampleBatches = new ConcurrentLinkedQueue<>();
     private final AtomicInteger queuedSampleBatches = new AtomicInteger();
@@ -48,7 +50,9 @@ public final class ElytraPathNavigator {
     private final Sampler sampler = new Sampler();
 
     private volatile boolean running;
-    /** 每次启停递增的代际号，旧线程退出后不会再处理新请求。 */
+    /**
+     * 每次启停递增的代际号，旧线程退出后不会再处理新请求。
+     */
     private volatile long workerGeneration;
     private volatile Thread workerThread;
     private volatile VoxelCollisionCache workerGrid;
@@ -404,7 +408,9 @@ public final class ElytraPathNavigator {
 
     private final class Sampler {
 
-        /** 采样器只允许在客户端线程访问；epoch 变化代表窗口或维度整体重建。 */
+        /**
+         * 采样器只允许在客户端线程访问；epoch 变化代表窗口或维度整体重建。
+         */
         private Level level;
         private int dataSize;
         private long epoch;
@@ -687,7 +693,9 @@ public final class ElytraPathNavigator {
 
     private static final class LongQueue {
 
-        /** 为方块采样设计的原始 long 环形队列，避免装箱和递归队列开销。 */
+        /**
+         * 为方块采样设计的原始 long 环形队列，避免装箱和递归队列开销。
+         */
         private long[] values;
         private int head;
         private int size;

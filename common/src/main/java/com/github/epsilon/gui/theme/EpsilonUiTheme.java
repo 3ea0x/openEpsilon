@@ -134,4 +134,5 @@ public class EpsilonUiTheme implements UiTheme {
     public long hoverAnimationDuration() {
         return DropdownTheme.ANIM_HOVER;
     }
+
 }

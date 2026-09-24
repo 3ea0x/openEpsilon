@@ -97,7 +97,7 @@ public class AssetManager {
     /**
      * 一次下载任务的状态，供下载界面在渲染线程轮询。
      */
-    public static final class DownloadJob {
+    public static class DownloadJob {
 
         public enum Status {
             RUNNING,

@@ -2,15 +2,15 @@ package com.github.epsilon.graphics.immediate;
 
 import com.github.epsilon.graphics.LuminRenderSystem;
 import com.github.epsilon.graphics.buffer.LuminRingBuffer;
-import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
-import com.mojang.renderpearl.api.buffers.GpuBuffer;
-import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
-import com.mojang.renderpearl.api.pipeline.RenderPipeline;
-import com.mojang.renderpearl.api.commands.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.renderpearl.api.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.renderpearl.api.buffers.GpuBuffer;
+import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+import com.mojang.renderpearl.api.commands.RenderPass;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
+import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
 import com.mojang.renderpearl.api.vertex.VertexFormat;
 import com.mojang.renderpearl.api.vertex.VertexFormatElement;
 import net.minecraft.client.renderer.rendertype.TextureTransform;
@@ -76,12 +76,27 @@ public class LuminImmediateRenderer {
         POS_COLOR_NORMAL_LINE_WIDTH_LINES.endFrame();
     }
 
-    public static class PosColorQuads {
+    /**
+     * 批次句柄的公共部分：持有共享通道，并负责在结束时提交本批次。
+     */
+    private abstract static class Batch {
 
-        private final Channel channel;
+        protected final Channel channel;
+
+        protected Batch(Channel channel) {
+            this.channel = channel;
+        }
+
+        public final void end() {
+            this.channel.drawAndReset();
+        }
+
+    }
+
+    public static class PosColorQuads extends Batch {
 
         private PosColorQuads(Channel channel) {
-            this.channel = channel;
+            super(channel);
         }
 
         public void vertex(Matrix4f matrix, float x, float y, float z, int color) {
@@ -89,18 +104,12 @@ public class LuminImmediateRenderer {
             this.channel.putColor(color);
             this.channel.finishVertex();
         }
-
-        public void end() {
-            this.channel.drawAndReset();
-        }
     }
 
-    public static class PosColorTriangleStrip {
-
-        private final Channel channel;
+    public static class PosColorTriangleStrip extends Batch {
 
         private PosColorTriangleStrip(Channel channel) {
-            this.channel = channel;
+            super(channel);
         }
 
         public void vertex(Matrix4f matrix, float x, float y, float z, int color) {
@@ -108,19 +117,12 @@ public class LuminImmediateRenderer {
             this.channel.putColor(color);
             this.channel.finishVertex();
         }
-
-        public void end() {
-            this.channel.drawAndReset();
-        }
-
     }
 
-    public static class PosColorTriangleFan {
-
-        private final Channel channel;
+    public static class PosColorTriangleFan extends Batch {
 
         private PosColorTriangleFan(Channel channel) {
-            this.channel = channel;
+            super(channel);
         }
 
         public void vertex(Matrix4f matrix, float x, float y, float z, int color) {
@@ -128,19 +130,12 @@ public class LuminImmediateRenderer {
             this.channel.putColor(color);
             this.channel.finishVertex();
         }
-
-        public void end() {
-            this.channel.drawAndReset();
-        }
-
     }
 
-    public static class PosTexColorQuads {
-
-        private final Channel channel;
+    public static class PosTexColorQuads extends Batch {
 
         private PosTexColorQuads(Channel channel) {
-            this.channel = channel;
+            super(channel);
         }
 
         public void vertex(Matrix4f matrix, float x, float y, float z, float u, float v, int color) {
@@ -149,19 +144,14 @@ public class LuminImmediateRenderer {
             this.channel.putColor(color);
             this.channel.finishVertex();
         }
-
-        public void end() {
-            this.channel.drawAndReset();
-        }
     }
 
-    public static class Lines {
+    public static class Lines extends Batch {
 
-        private final Channel channel;
         private final Vector3f normalTmp = new Vector3f();
 
         private Lines(Channel channel) {
-            this.channel = channel;
+            super(channel);
         }
 
         public void vertex(Matrix4f matrix, PoseStack.Pose pose, float x, float y, float z, int color, float nx, float ny, float nz, float width) {
@@ -173,16 +163,11 @@ public class LuminImmediateRenderer {
             this.channel.putLineWidth(width);
             this.channel.finishVertex();
         }
-
-        public void end() {
-            this.channel.drawAndReset();
-        }
     }
 
-    private static final class Channel {
+    private static class Channel {
 
         private final LuminRingBuffer ringBuffer;
-        private final VertexFormat format;
         private final PrimitiveTopology mode;
         private final int stride;
 
@@ -210,7 +195,6 @@ public class LuminImmediateRenderer {
 
         private Channel(VertexFormat format, PrimitiveTopology mode) {
             this.ringBuffer = new LuminRingBuffer(DEFAULT_BUFFER_SIZE, GpuBuffer.USAGE_VERTEX);
-            this.format = format;
             this.mode = mode;
             this.stride = format.getVertexSize();
 
@@ -352,6 +336,8 @@ public class LuminImmediateRenderer {
                         TextureTransform.DEFAULT_TEXTURING.createMatrix()
                 );
 
+                AbstractTexture textureObject = this.texture == null ? null : mc.getTextureManager().getTexture(this.texture);
+
                 try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                         () -> "Lumin Immediate Draw",
                         colorView, Optional.empty(),
@@ -362,14 +348,15 @@ public class LuminImmediateRenderer {
                     pass.setUniform("DynamicTransforms", dynamicUniforms);
                     pass.setVertexBuffer(0, this.ringBuffer.getGpuBuffer().slice());
 
-                    if (this.texture != null) {
-                        AbstractTexture textureObject = mc.getTextureManager().getTexture(this.texture);
+                    if (textureObject != null) {
                         pass.setUniform("Sampler0", textureObject.getTextureView(), textureObject.getSampler());
                     }
 
                     if (this.passConfigurer != null) {
                         this.passConfigurer.accept(pass);
                     }
+
+                    int firstVertex = Math.toIntExact(this.batchStartOffset / this.stride);
 
                     switch (this.mode) {
                         case LINES, QUADS -> {
@@ -378,12 +365,12 @@ public class LuminImmediateRenderer {
                                 RenderSystem.AutoStorageIndexBuffer autoIndices = RenderSystem.getSequentialBuffer(this.mode);
                                 GpuBuffer ibo = autoIndices.getBuffer(indexCount);
                                 pass.setIndexBuffer(ibo, autoIndices.type());
-                                pass.drawIndexed(indexCount, 1, 0, Math.toIntExact(this.batchStartOffset / this.stride), 0);
+                                pass.drawIndexed(indexCount, 1, 0, firstVertex, 0);
                                 submittedDraw = true;
                             }
                         }
                         default -> {
-                            pass.draw(this.vertexCount, 1, Math.toIntExact(this.batchStartOffset / this.stride), 0);
+                            pass.draw(this.vertexCount, 1, firstVertex, 0);
                             submittedDraw = true;
                         }
                     }

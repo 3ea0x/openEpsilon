@@ -282,7 +282,9 @@ public class TtfFontLoader implements IFontLoader {
         }
     }
 
-    /** 写入当前 atlas，写不下时新开一张重试；返回 null 表示两张都写不下。 */
+    /**
+     * 写入当前 atlas，写不下时新开一张重试；返回 null 表示两张都写不下。
+     */
     private TtfGlyphAtlas.GlyphUV appendToAtlas(TtfGlyph glyph) {
         if (currentAtlas == null) {
             createNewAtlas();
