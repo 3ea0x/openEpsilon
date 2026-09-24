@@ -15,14 +15,18 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public final class CombatHitTracker {
 
-    /** 行为层只需要区分重锤和长矛两类命中。 */
+    /**
+     * 行为层只需要区分重锤和长矛两类命中。
+     */
     public enum HitType {
         MACE,
         SPEAR
     }
 
     private final ConcurrentLinkedQueue<HitType> pendingHits = new ConcurrentLinkedQueue<>();
-    /** 网络线程只写 volatile 上下文，队列在客户端 tick 中消费。 */
+    /**
+     * 网络线程只写 volatile 上下文，队列在客户端 tick 中消费。
+     */
     private volatile int localPlayerId = -1;
     private volatile int targetId = -1;
     private volatile int lastAttackTick = Integer.MIN_VALUE;

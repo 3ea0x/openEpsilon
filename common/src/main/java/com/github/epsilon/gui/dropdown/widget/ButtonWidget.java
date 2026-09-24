@@ -1,6 +1,5 @@
 package com.github.epsilon.gui.dropdown.widget;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.github.epsilon.gui.dropdown.DropdownScreen;
 import com.github.epsilon.gui.dropdown.DropdownTheme;
 import com.github.epsilon.gui.dropdown.ReisaDropdownCompanion;
@@ -9,6 +8,7 @@ import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.settings.impl.ButtonSetting;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
+import com.mojang.blaze3d.platform.InputConstants;
 
 public class ButtonWidget extends SettingWidget<ButtonSetting> {
 

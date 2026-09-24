@@ -2,11 +2,11 @@ package com.github.epsilon.graphics.text.ttf;
 
 import com.github.epsilon.graphics.LuminRenderSystem;
 import com.github.epsilon.graphics.LuminTexture;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.commands.CommandEncoder;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.renderpearl.api.textures.AddressMode;
 import com.mojang.renderpearl.api.textures.FilterMode;
 import com.mojang.renderpearl.api.textures.GpuTexture;
@@ -24,7 +24,9 @@ public class TtfGlyphAtlas {
 
     private static final int SIZE = 1024;
     private static final int GLYPH_GUTTER = 2;
-    /** Vulkan 要求 bufferOffset 为格式 texel block size 的倍数，取 4 同时覆盖 R8（1）与 RGBA8（4）。 */
+    /**
+     * Vulkan 要求 bufferOffset 为格式 texel block size 的倍数，取 4 同时覆盖 R8（1）与 RGBA8（4）。
+     */
     private static final long STAGING_ALIGNMENT = 4L;
     private static final AtomicInteger NEXT_TEXTURE_ID = new AtomicInteger();
     private final LuminTexture texture;

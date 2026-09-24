@@ -19,7 +19,9 @@ public final class FlightIntentPlanner {
     private static final double LOCAL_PROBE_DISTANCE = 6.0;
 
     private final ElytraPathNavigator pathNavigator = new ElytraPathNavigator();
-    /** 局部避障上一 tick 的方向，用于抑制左右两侧得分接近时来回切换。 */
+    /**
+     * 局部避障上一 tick 的方向，用于抑制左右两侧得分接近时来回切换。
+     */
     private Vec3 lastAvoidanceDirection;
 
     public FlightIntent plan(

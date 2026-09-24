@@ -118,6 +118,10 @@ RenderPass 的使用方式也随之收紧：
 - `RenderPass.setPipeline(...)` 只接受 `CompiledRenderPipeline`，必须传
   `RenderSystem.getCompiledPipeline(pipeline)`。
 - 纹理与采样器统一通过 `setUniform(name, textureView, sampler)` 绑定，`bindTexture` 已不存在。
+- `TextureManager.getTexture(...)` 首次访问某个 `Identifier` 时会上传纹理，而上传走的是设备级共享
+  `CommandEncoder`；只要当前存在打开的 RenderPass，上传会抛出 “Close the existing render pass before
+  performing additional commands”。因此纹理解析必须在 pass 之外完成（`prepare*` 阶段），pass 内只允许
+  绑定 `textureView` 与 `sampler`，`LuminImmediateRenderer` 的批次同理。
 - `TextureTarget` 的构造签名变为 `(label, width, height, colorFormat, depthFormat)`；需要深度的目标
   传 `GpuFormat.D32_FLOAT`，不需要时传 `null`。
 - `RenderSetup` 不再携带输出目标：自定义描边必须提交到模块自己的 `SubmitNodeStorage`，再用
@@ -138,6 +142,15 @@ RenderPass 的使用方式也随之收紧：
   `FrontendCommandEncoder` 会抛出 “Close the existing render pass before creating a new one!”。
 - 胸箱描边由 `MixinChestRenderer` 提交到 `ShaderManager` 自己的 `chestOutlineStorage`，
   `ShaderManager.processChestOutlineTarget` 在 `render3dHud` 结束后准备帧并渲染。
+
+Chams 的透明化（透视）链路：实体提交仍复用原版提交阶段，但 26.3 把 26.2 的 `alwaysOnTop` 相位并入了
+`alwaysOnTopGizmos`，而 `LevelRenderer` 只在 `finalizedGizmos` 里存在 always-on-top gizmo 时才执行该
+pass（`frameHasAlwaysOnTopGizmos()`）。因此 `MixinSubmitNodeCollection` 重定向提交时用
+`Chams.markAlwaysOnTopSubmit()` 记录本帧状态，`MixinLevelRenderer` 在 `render` 开头重置，并在
+`frameHasAlwaysOnTopGizmos` 的返回值上放行，让 Chams 复用原版“清空深度缓冲后绘制”的 pass；
+`consistentDepthRequired` 时 `alwaysOnTopDepth` 与 `INTEGRATE_DEPTH` 的深度回写也一并生效。
+不得把 Chams 提交改投 `seeThrough`：该 pass 没有深度附件，带 `DepthStencilState` 的管线会在
+`FrontendRenderPass.validateDraw` 抛 “wants a depth texture but none was provided”。
 
 手部渲染器改名与拆分：`ItemInHandRenderer` 变为无状态的 `FirstPersonHandsAndItemsRenderer`，
 物品切换动画的计时移到 `net.minecraft.client.player.FirstPersonHandsAndItems`。修改 HandView、

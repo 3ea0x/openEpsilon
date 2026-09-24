@@ -444,15 +444,6 @@ public class Backtrack extends Module {
         return new Vec3(decodedX, decodedY, decodedZ);
     }
 
-    /**
-     * 解码移动包携带的相对位移。
-     *
-     * <p>26.3 的移动包改为携带 {@link VecDelta}，线性位移与分段位移需要分别处理。
-     *
-     * @param base 基准位置
-     * @param delta 移动包中的位移数据
-     * @return 解码后的位置
-     */
     private static Vec3 decodeMovementDelta(Vec3 base, VecDelta delta) {
         Vec3 position = base;
         if (delta instanceof VecDelta.Linear(short xa, short ya, short za)) {

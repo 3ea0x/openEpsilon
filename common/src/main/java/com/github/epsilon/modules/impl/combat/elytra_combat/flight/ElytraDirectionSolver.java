@@ -19,9 +19,13 @@ import java.util.List;
  */
 public final class ElytraDirectionSolver {
 
-    /** 安全解至少预演的 tick 数；短于该值的候选会被视为存在近期碰撞风险。 */
+    /**
+     * 安全解至少预演的 tick 数；短于该值的候选会被视为存在近期碰撞风险。
+     */
     private static final int TRAJECTORY_HORIZON_TICKS = 4;
-    /** 抬头保护探测距离与逃逸 pitch；与 ControlElytraFlightMode 保持一致。 */
+    /**
+     * 抬头保护探测距离与逃逸 pitch；与 ControlElytraFlightMode 保持一致。
+     */
     private static final double CEILING_PROBE_DISTANCE = 0.75;
     private static final double CEILING_PROBE_EPSILON = 1.0E-4;
     private static final float CEILING_ESCAPE_PITCH = 5.0f;

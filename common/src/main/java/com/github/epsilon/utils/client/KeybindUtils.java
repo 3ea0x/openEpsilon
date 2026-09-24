@@ -1,19 +1,19 @@
 package com.github.epsilon.utils.client;
 
-import com.github.epsilon.assets.i18n.EpsilonTranslations;
 import com.github.epsilon.Constants;
+import com.github.epsilon.assets.i18n.EpsilonTranslations;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
 import org.lwjgl.sdl.SDLMouse;
-
-import static com.github.epsilon.Constants.mc;
 
 public class KeybindUtils {
 
     public static final int NONE = -1;
     public static final int MOUSE_OFFSET = -2;
 
-    /** 26.2 及更早版本使用的 GLFW 鼠标按键编号顺序：左键、右键、中键、附加键。 */
+    /**
+     * 26.2 及更早版本使用的 GLFW 鼠标按键编号顺序：左键、右键、中键、附加键。
+     */
     private static final int[] LEGACY_MOUSE_BUTTONS = {
             InputConstants.MOUSE_BUTTON_LEFT,
             InputConstants.MOUSE_BUTTON_RIGHT,

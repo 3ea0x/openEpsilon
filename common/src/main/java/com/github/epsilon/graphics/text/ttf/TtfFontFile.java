@@ -23,11 +23,15 @@ public class TtfFontFile {
     public final int pixelAscent;
     public final int fontHeight;
 
-    /** 缺字占位框（口字形）的尺寸比例：高度取 ascent 的 2/3，宽度与笔画由高度推导。 */
+    /**
+     * 缺字占位框（口字形）的尺寸比例：高度取 ascent 的 2/3，宽度与笔画由高度推导。
+     */
     private static final float FALLBACK_HEIGHT_RATIO = 2.0f / 3.0f;
     private static final float FALLBACK_WIDTH_RATIO = 0.72f;
     private static final float FALLBACK_STROKE_RATIO = 1.0f / 8.0f;
-    /** 占位框位图四周外扩的像素数，保住墨迹边缘之外的一圈 SDF 过渡带。 */
+    /**
+     * 占位框位图四周外扩的像素数，保住墨迹边缘之外的一圈 SDF 过渡带。
+     */
     private static final int FALLBACK_PADDING = 2;
 
     public TtfFontFile(Identifier ttfFile, int totalHeight, int padding) {
@@ -208,7 +212,9 @@ public class TtfFontFile {
         return new TtfGlyph(sdfPixels, alphaPixels, bitmapWidth, bitmapHeight, xOffset, yOffset, boxWidth + stroke);
     }
 
-    /** 矩形环（“口”字框）的有符号距离，墨迹内为负。 */
+    /**
+     * 矩形环（“口”字框）的有符号距离，墨迹内为负。
+     */
     private static double ringDistance(double x, double y, double halfWidth, double halfHeight,
                                        double innerHalfWidth, double innerHalfHeight) {
         return Math.max(
@@ -217,7 +223,9 @@ public class TtfFontFile {
         );
     }
 
-    /** 矩形有符号距离，内部为负。 */
+    /**
+     * 矩形有符号距离，内部为负。
+     */
     private static double boxDistance(double x, double y, double halfWidth, double halfHeight) {
         double qx = Math.abs(x) - halfWidth;
         double qy = Math.abs(y) - halfHeight;

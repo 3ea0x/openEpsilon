@@ -12,7 +12,9 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class LocalFlightAvoidance {
 
-    /** 围绕期望方向采样的固定夹角集合；组合数量有界，适合主线程运行。 */
+    /**
+     * 围绕期望方向采样的固定夹角集合；组合数量有界，适合主线程运行。
+     */
     private static final float[] YAW_OFFSETS = {-90.0f, -60.0f, -30.0f, 0.0f, 30.0f, 60.0f, 90.0f};
     private static final float[] PITCH_OFFSETS = {-40.0f, -25.0f, -10.0f, 0.0f, 10.0f, 25.0f, 40.0f};
 

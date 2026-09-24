@@ -1,6 +1,5 @@
 package com.github.epsilon.gui.dropdown.component;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.github.epsilon.assets.i18n.EpsilonTranslations;
 import com.github.epsilon.graphics.text.IconChars;
 import com.github.epsilon.graphics.text.StaticFontLoader;
@@ -17,11 +16,11 @@ import com.github.epsilon.settings.impl.*;
 import com.github.epsilon.utils.client.KeybindUtils;
 import com.github.epsilon.utils.render.animation.Animation;
 import com.github.epsilon.utils.render.animation.Easing;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.util.Mth;
 
 import java.awt.*;
-import java.util.*;
-import java.util.List;
+import java.util.Locale;
 
 public class ModuleButton extends Component {
 

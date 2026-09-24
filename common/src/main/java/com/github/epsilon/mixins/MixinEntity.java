@@ -23,7 +23,7 @@ public class MixinEntity {
 
     @Inject(method = "turn", at = @At("HEAD"), cancellable = true)
     private void updateTurn(double xo, double yo, CallbackInfo ci) {
-        if ((Object) this == mc.player) {
+        if ((Entity) (Object) this == mc.player) {
             FreeCamera freeCamera = FreeCamera.INSTANCE;
             if (freeCamera.isEnabled()) {
                 freeCamera.changeLookDirection(xo * 0.15, yo * 0.15);
@@ -32,10 +32,9 @@ public class MixinEntity {
         }
     }
 
-    // 26.3 起 calculateViewVector 是静态方法，包装方法不能再接收实体接收者，改为读取 mixin 自身的实例。
     @WrapOperation(method = "getViewVector", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;calculateViewVector(FF)Lnet/minecraft/world/phys/Vec3;"))
     private Vec3 redirectGetViewYRot(float xRot, float yRot, Operation<Vec3> original) {
-        if ((Object) this == mc.player) {
+        if ((Entity) (Object) this == mc.player) {
             RaytraceEvent event = EventBus.INSTANCE.post(new RaytraceEvent(yRot, xRot));
             return original.call(event.getPitch(), event.getYaw());
         }

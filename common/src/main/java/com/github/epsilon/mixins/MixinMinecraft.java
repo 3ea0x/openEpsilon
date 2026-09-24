@@ -13,10 +13,10 @@ import com.github.epsilon.modules.impl.player.MultiTask;
 import com.github.epsilon.modules.impl.player.UseCooldown;
 import com.github.epsilon.modules.impl.render.FreeCamera;
 import com.github.epsilon.modules.impl.render.HandView;
+import com.github.epsilon.utils.player.PlayerUtils;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import me.sofurry.smtc.SmtcService;
-import com.github.epsilon.utils.player.PlayerUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -140,7 +140,6 @@ public abstract class MixinMinecraft {
                 && mc.options.keyAttack.consumeClick()
                 && (!handView.onlyOnBlock.getValue() || mc.hitResult.getType() == HitResult.Type.BLOCK)
         ) {
-            // 26.3 起挥手只影响本地动画，服务端挥手由攻击行为广播。
             PlayerUtils.swingHand(InteractionHand.MAIN_HAND);
         }
     }

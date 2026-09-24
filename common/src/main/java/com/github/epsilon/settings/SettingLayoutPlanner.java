@@ -95,8 +95,7 @@ public class SettingLayoutPlanner {
             switch (element) {
                 case Section.SettingElement settingElement ->
                         signature = signature * 31L + settingElement.setting().getName().hashCode();
-                case Section.GroupElement groupElement ->
-                        signature = mixSignature(signature, groupElement.section());
+                case Section.GroupElement groupElement -> signature = mixSignature(signature, groupElement.section());
             }
         }
         return signature;
@@ -106,8 +105,7 @@ public class SettingLayoutPlanner {
         List<Section.Element> elements = new ArrayList<>(node.items.size());
         for (Item item : node.items) {
             switch (item) {
-                case Item.SettingLeaf settingLeaf ->
-                        elements.add(new Section.SettingElement(settingLeaf.setting()));
+                case Item.SettingLeaf settingLeaf -> elements.add(new Section.SettingElement(settingLeaf.setting()));
                 case Item.Child childItem -> {
                     Section child = toSection(childItem.node());
                     if (child != null) {

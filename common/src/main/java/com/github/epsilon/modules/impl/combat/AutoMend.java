@@ -9,9 +9,9 @@ import com.github.epsilon.settings.impl.BoolSetting;
 import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.utils.player.FindItemResult;
 import com.github.epsilon.utils.player.InvUtils;
+import com.github.epsilon.utils.player.PlayerUtils;
 import com.github.epsilon.utils.rotation.Priority;
 import com.github.epsilon.utils.rotation.Rot2f;
-import com.github.epsilon.utils.player.PlayerUtils;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Items;
 

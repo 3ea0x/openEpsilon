@@ -1,12 +1,12 @@
 package com.github.epsilon.gui.dropdown.widget;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.github.epsilon.gui.dropdown.DropdownScreen;
 import com.github.epsilon.gui.dropdown.DropdownTheme;
 import com.github.epsilon.gui.dropdown.ReisaDropdownCompanion;
 import com.github.epsilon.gui.lib.UiTextMetrics;
 import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.settings.impl.StringSetting;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import java.util.Objects;
 

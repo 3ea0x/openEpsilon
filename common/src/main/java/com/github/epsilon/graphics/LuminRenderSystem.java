@@ -7,13 +7,13 @@ import com.github.epsilon.managers.RenderTargetManager;
 import com.github.epsilon.managers.RendererManager;
 import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.utils.render.ScissorUtils;
-import com.mojang.renderpearl.api.GpuFormat;
-import com.mojang.renderpearl.api.pipeline.IndexType;
-import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.blaze3d.ProjectionType;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.renderpearl.api.pipeline.IndexType;
+import com.mojang.renderpearl.api.pipeline.PrimitiveTopology;
 import com.mojang.renderpearl.api.textures.*;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.DynamicGpuDataStorage;
@@ -38,7 +38,9 @@ public class LuminRenderSystem {
 
     private static final ProjectionMatrixBuffer guiProjectionMatrixBuffer = new ProjectionMatrixBuffer("lumin-gui");
 
-    /** 当前 GPU 后端是否为 Vulkan。设备创建后后端不会再变，因此只判定一次。 */
+    /**
+     * 当前 GPU 后端是否为 Vulkan。设备创建后后端不会再变，因此只判定一次。
+     */
     public static final boolean IS_VULKAN_BACKEND = "Vulkan".equals(RenderSystem.getDevice().getDeviceInfo().backendName());
 
     private static LuminRenderTarget activeTarget = null;

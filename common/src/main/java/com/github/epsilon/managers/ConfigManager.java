@@ -28,7 +28,9 @@ import java.util.zip.ZipOutputStream;
 
 public class ConfigManager {
 
-    /** 26.3 起键位保存 SDL 扫描码，版本 4 之前的配置需要迁移键位。 */
+    /**
+     * 26.3 起键位保存 SDL 扫描码，版本 4 之前的配置需要迁移键位。
+     */
     private static final int CONFIG_VERSION = 4;
     private static final int KEYBIND_MIGRATION_VERSION = 4;
     private static final String DEFAULT_CONFIG_NAME = "default";
@@ -533,8 +535,7 @@ public class ConfigManager {
             else if (setting instanceof KeybindSetting s) {
                 int keyBind = value.getAsInt();
                 s.setValue(migrateKeyBinds ? KeybindUtils.migrateLegacyKeyBind(keyBind) : keyBind);
-            }
-            else if (setting instanceof IntSetting s) s.setUnboundedValue(value.getAsInt());
+            } else if (setting instanceof IntSetting s) s.setUnboundedValue(value.getAsInt());
             else if (setting instanceof DoubleSetting s) s.setUnboundedValue(value.getAsDouble());
             else if (setting instanceof StringSetting s) s.setValue(value.getAsString());
             else if (setting == ClientSetting.INSTANCE.guiMode && setting instanceof EnumSetting s)

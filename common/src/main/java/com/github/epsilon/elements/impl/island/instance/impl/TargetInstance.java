@@ -135,8 +135,7 @@ public class TargetInstance extends LandInstance {
         };
         float filled = Mth.clamp(barWidth, 0f, healthWidth);
         if (filled > 0f) {
-            scope.roundRectHorizontalGradient(barX, barY, filled, BAR_HEIGHT, barRadius,
-                    fade(palette[0]), fade(palette[palette.length - 1]));
+            scope.roundRectHorizontalGradient(barX, barY, filled, BAR_HEIGHT, barRadius, fade(palette[0]), fade(palette[palette.length - 1]));
         }
 
         scope.text(healthText, HEALTH_TEXT_INSET, healthY, HEALTH_SCALE, fade(IslandPalette.TEXT_SECONDARY));

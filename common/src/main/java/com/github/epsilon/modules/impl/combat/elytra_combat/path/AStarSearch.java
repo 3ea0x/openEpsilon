@@ -3,15 +3,7 @@ package com.github.epsilon.modules.impl.combat.elytra_combat.path;
 import com.github.epsilon.modules.impl.combat.elytra_combat.flight.ElytraMotionPredictor;
 import net.minecraft.core.BlockPos;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 基础 26 方向 A*。
@@ -22,9 +14,13 @@ import java.util.Set;
  */
 final class AStarSearch {
 
-    /** 缩小碰撞箱边界，避免正好落在方块边界时把相邻格误算进来。 */
+    /**
+     * 缩小碰撞箱边界，避免正好落在方块边界时把相邻格误算进来。
+     */
     private static final double EPSILON = 1.0E-7;
-    /** 预生成的 26 个方向，避免每次扩展节点重复创建偏移数组。 */
+    /**
+     * 预生成的 26 个方向，避免每次扩展节点重复创建偏移数组。
+     */
     private static final int[][] NEIGHBORS = createNeighbors();
 
     private final VoxelCollisionCache grid;

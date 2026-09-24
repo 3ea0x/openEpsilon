@@ -1,7 +1,7 @@
 package com.github.epsilon.utils.client;
 
-import com.mojang.blaze3d.Blaze3D;
 import com.github.epsilon.managers.ConfigManager;
+import com.mojang.blaze3d.Blaze3D;
 
 import java.io.IOException;
 import java.nio.file.Files;
