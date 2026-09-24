@@ -276,9 +276,11 @@ public class ModuleButton extends Component {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (listeningKeybind) {
-            module.setKeyBind(keyCode == 256 || keyCode == 259 ? KeybindUtils.NONE : keyCode);
+            module.setKeyBind(keyCode == InputConstants.KEY_ESCAPE || keyCode == InputConstants.KEY_BACKSPACE
+                    ? KeybindUtils.NONE
+                    : keyCode);
             listeningKeybind = false;
-            DropdownScreen.INSTANCE.react(keyCode == 256
+            DropdownScreen.INSTANCE.react(keyCode == InputConstants.KEY_ESCAPE
                     ? ReisaDropdownCompanion.Action.CANCEL
                     : ReisaDropdownCompanion.Action.CONFIRM);
             return true;

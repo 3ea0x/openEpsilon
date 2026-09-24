@@ -14,7 +14,7 @@ import java.util.List;
  * <p>先检查短距离直飞；开启寻路时直接使用后台基础 A*，否则退回局部扇区避障。
  * 这样可以把 A* 路径和局部避障明确分开，避免两套方向在同一 tick 互相覆盖。</p>
  */
-public final class FlightIntentPlanner {
+public class FlightIntentPlanner {
 
     private static final double LOCAL_PROBE_DISTANCE = 6.0;
 

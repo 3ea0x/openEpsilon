@@ -14,7 +14,7 @@ import java.util.List;
  * <p>采样只在客户端 tick 执行，避免从网络线程访问实体或 Level。历史保留 30 个样本，
  * 目标切换时立即清空，防止把旧目标速度带入新目标。</p>
  */
-public final class TargetMotionTracker {
+public class TargetMotionTracker {
 
     // 分类阈值：20 tick 无位移视为 AFK，连续两段位移小于 0.75 视为慢速，转向超过 60 度视为绕圈。
     private static final int MAX_HISTORY = 30;

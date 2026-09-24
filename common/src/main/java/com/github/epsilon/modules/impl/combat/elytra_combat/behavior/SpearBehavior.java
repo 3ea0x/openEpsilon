@@ -19,7 +19,7 @@ import net.minecraft.world.phys.Vec3;
  * <p>通过持续使用长矛组件等待 delayTicks，冲锋只修改 FlightIntent；不发送瞬移序列。
  * KINETIC_HIT 包确认命中后进入 PULL_OVER。</p>
  */
-public final class SpearBehavior implements ElytraCombatBehavior {
+public class SpearBehavior implements ElytraCombatBehavior {
 
     private enum State {
         /**

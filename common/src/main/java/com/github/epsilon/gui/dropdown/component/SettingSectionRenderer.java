@@ -32,7 +32,7 @@ import java.util.function.Predicate;
  * 绘制坐标使用调用方 scope 的局部坐标，命中测试使用「局部坐标 + hitOffset」得到的绝对坐标，
  * 因此控件缓存的绝对位置可以直接参与命中。
  */
-public final class SettingSectionRenderer {
+public class SettingSectionRenderer {
 
     private final List<Node> nodes;
     private final Map<String, Animation> hoverAnimations = new HashMap<>();

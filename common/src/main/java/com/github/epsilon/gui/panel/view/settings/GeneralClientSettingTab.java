@@ -213,12 +213,12 @@ public class GeneralClientSettingTab implements ClientSettingTabView {
     public boolean keyPressed(KeyEvent event) {
         KeybindSetting listening = state.getListeningKeybindSetting();
         if (listening != null) {
-            if (event.key() == 256) {
+            if (event.key() == InputConstants.KEY_ESCAPE) {
                 state.setListeningKeybindSetting(null);
                 markDirty();
                 return true;
             }
-            if (event.key() == 259 || event.key() == 261) {
+            if (event.key() == InputConstants.KEY_BACKSPACE || event.key() == InputConstants.KEY_DELETE) {
                 listening.setValue(-1);
                 state.setListeningKeybindSetting(null);
                 markDirty();

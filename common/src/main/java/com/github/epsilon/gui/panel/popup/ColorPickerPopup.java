@@ -190,35 +190,35 @@ public class ColorPickerPopup implements PanelPopupHost.Popup {
             return false;
         }
         return switch (event.key()) {
-            case 257, 335 -> {
+            case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> {
                 commitInput();
                 focusedChannel = null;
                 inputBuffer = null;
                 yield true;
             }
-            case 256 -> {
+            case InputConstants.KEY_ESCAPE -> {
                 focusedChannel = null;
                 inputBuffer = null;
                 yield true;
             }
-            case 259 -> {
+            case InputConstants.KEY_BACKSPACE -> {
                 if (inputBuffer != null && cursorIndex > 0) {
                     inputBuffer = inputBuffer.substring(0, cursorIndex - 1) + inputBuffer.substring(cursorIndex);
                     cursorIndex--;
                 }
                 yield true;
             }
-            case 261 -> {
+            case InputConstants.KEY_DELETE -> {
                 if (inputBuffer != null && cursorIndex < inputBuffer.length()) {
                     inputBuffer = inputBuffer.substring(0, cursorIndex) + inputBuffer.substring(cursorIndex + 1);
                 }
                 yield true;
             }
-            case 263 -> {
+            case InputConstants.KEY_LEFT -> {
                 cursorIndex = Math.max(0, cursorIndex - 1);
                 yield true;
             }
-            case 262 -> {
+            case InputConstants.KEY_RIGHT -> {
                 cursorIndex = Math.min(getDisplayBuffer().length(), cursorIndex + 1);
                 yield true;
             }

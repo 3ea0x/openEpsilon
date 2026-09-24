@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 /**
  * 将网络线程收到的命中包转成客户端 tick 可消费的状态事件。
  */
-public final class CombatHitTracker {
+public class CombatHitTracker {
 
     /**
      * 行为层只需要区分重锤和长矛两类命中。

@@ -319,7 +319,7 @@ public class PanelScreen extends Screen {
             dirtyState.markAllDirty();
             return true;
         }
-        if (event.key() == 256) {
+        if (event.key() == InputConstants.KEY_ESCAPE) {
             onClose();
             return true;
         }

@@ -8,7 +8,7 @@ import net.minecraft.core.BlockPos;
  * <p>细体素使用世界坐标取模寻址；槽位同时保存坐标标签，因此滚动窗口复用槽位时，
  * 旧坐标不会被当成新坐标读取。</p>
  */
-public final class VoxelCollisionCache {
+public class VoxelCollisionCache {
 
     /**
      * UNKNOWN 与 BLOCKED 都视为不可通行，只有明确采样的 FREE 允许通过。

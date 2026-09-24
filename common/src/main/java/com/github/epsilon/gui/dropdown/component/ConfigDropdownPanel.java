@@ -215,7 +215,7 @@ public class ConfigDropdownPanel extends AbstractDropdownPanel {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (!inputField.isFocused()) return false;
-        if (keyCode == 256) {
+        if (keyCode == InputConstants.KEY_ESCAPE) {
             inputField.blur();
             return true;
         }

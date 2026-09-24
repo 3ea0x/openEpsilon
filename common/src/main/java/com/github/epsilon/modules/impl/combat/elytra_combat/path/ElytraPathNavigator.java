@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * <p>客户端线程只负责有界采样；专用工作线程运行基础 A* 并输出原始方块路径。</p>
  */
-public final class ElytraPathNavigator {
+public class ElytraPathNavigator {
 
     // 体素窗口与每 tick 采样预算；Data Size 必须是 5 的倍数。
     private static final int DEFAULT_DATA_SIZE = 50;

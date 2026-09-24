@@ -24,7 +24,7 @@ import java.util.List;
  *
  * <p>状态流转为 NONE -> PULL_UP -> FOLLOW -> WAIT_ATTACK。</p>
  */
-public final class MaceBehavior implements ElytraCombatBehavior {
+public class MaceBehavior implements ElytraCombatBehavior {
 
     private enum State {
         /**

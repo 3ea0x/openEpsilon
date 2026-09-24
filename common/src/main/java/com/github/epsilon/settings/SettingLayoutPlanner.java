@@ -210,7 +210,7 @@ public class SettingLayoutPlanner {
      * {@link #elements()} 保留声明顺序，直接 Setting 与子分组在其中交错；
      * {@link #settings()} 与 {@link #children()} 只是按类型过滤后的视图。
      */
-    public static final class Section {
+    public static class Section {
 
         private final String key;
         private final String title;

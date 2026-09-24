@@ -17,7 +17,7 @@ import java.util.List;
  * <p>因为滑翔速度受惯性、重力和阻力影响，直接看向目标并不等于实际飞向目标。
  * 这里固定 yaw 为期望水平方向，在 pitch 范围内采样并细化，使下一 tick 模拟速度与期望速度夹角最小。</p>
  */
-public final class ElytraDirectionSolver {
+public class ElytraDirectionSolver {
 
     /**
      * 安全解至少预演的 tick 数；短于该值的候选会被视为存在近期碰撞风险。

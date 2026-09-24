@@ -69,13 +69,13 @@ public class StringWidget extends SettingWidget<StringSetting> {
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (!inputField.isFocused()) return false;
 
-        if (keyCode == 257 || keyCode == 335) {
+        if (keyCode == InputConstants.KEY_RETURN || keyCode == InputConstants.KEY_NUMPADENTER) {
             commitSetting();
             inputField.blur();
             DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CONFIRM);
             return true;
         }
-        if (keyCode == 256) {
+        if (keyCode == InputConstants.KEY_ESCAPE) {
             inputField.setText(setting.getValue());
             inputField.blur();
             DropdownScreen.INSTANCE.react(ReisaDropdownCompanion.Action.CANCEL);

@@ -22,7 +22,7 @@ import java.util.function.Predicate;
 /**
  * ElytraCombat 独立武器控制器，不依赖 AutoWeapon、MaceAura 或 SpearKill。
  */
-public final class CombatWeaponController {
+public class CombatWeaponController {
 
     private static final Minecraft mc = Minecraft.getInstance();
     /**

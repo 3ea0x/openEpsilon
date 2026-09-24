@@ -146,20 +146,24 @@ public class HandView extends Module {
             }
             case NewExhibition -> {
                 applySourceBaseTransform(poseStack, side, -0.01F, attack);
-                poseStack.rotateDegrees(Axis.of(new Vector3f(-0.3F, 1.0F, 1.3F)), side * progress * -40.0F);
-                poseStack.rotateDegrees(Axis.of(new Vector3f(progress / 2.0F, 0.0F, 4.0F)), side * progress * 50.0F);
-                poseStack.rotateDegrees(Axis.of(new Vector3f(1.0F, progress / 2.0F, 0.0F)), side * progress * 40.0F);
-                poseStack.rotateDegrees(Axis.of(new Vector3f(0.3F, 0.1F, 0.4F)), side * progress * -20.7F);
+                poseStack.rotateDegrees(normalizedAxis(-0.3F, 1.0F, 1.3F), side * progress * -40.0F);
+                poseStack.rotateDegrees(normalizedAxis(progress / 2.0F, 0.0F, 4.0F), side * progress * 50.0F);
+                poseStack.rotateDegrees(normalizedAxis(1.0F, progress / 2.0F, 0.0F), side * progress * 40.0F);
+                poseStack.rotateDegrees(normalizedAxis(0.3F, 0.1F, 0.4F), side * progress * -20.7F);
                 poseStack.scale(0.9F, 0.9F, 0.9F);
                 applySourceBlockTransform(poseStack);
             }
             case OldExhibition -> {
                 applySourceBaseTransform(poseStack, side, inverseArmHeight * 0.6F - 0.07F, 1.0F);
-                poseStack.rotateDegrees(Axis.of(new Vector3f(progress / 2.0F, 0.0F, 4.0F)), -progress * 50.0F / 2.0F);
-                poseStack.rotateDegrees(Axis.of(new Vector3f(1.0F, progress / 2.0F, 0.0F)), -progress * 30.0F);
+                poseStack.rotateDegrees(normalizedAxis(progress / 2.0F, 0.0F, 4.0F), -progress * 50.0F / 2.0F);
+                poseStack.rotateDegrees(normalizedAxis(1.0F, progress / 2.0F, 0.0F), -progress * 30.0F);
                 applySourceBlockTransform(poseStack);
             }
         }
+    }
+
+    private static Axis normalizedAxis(float x, float y, float z) {
+        return Axis.of(new Vector3f(x, y, z).normalize());
     }
 
     private void applySourceBaseTransform(PoseStack poseStack, int side, float y, float swingProgress) {

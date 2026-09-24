@@ -265,13 +265,13 @@ public class ModuleListPanel implements AutoCloseable {
         }
         String query = state.getSearchQuery();
         return switch (event.key()) {
-            case 257, 335 -> true;
-            case 256 -> {
+            case InputConstants.KEY_RETURN, InputConstants.KEY_NUMPADENTER -> true;
+            case InputConstants.KEY_ESCAPE -> {
                 searchFocused = false;
                 IMEFocusHelper.deactivate();
                 yield true;
             }
-            case 259 -> {
+            case InputConstants.KEY_BACKSPACE -> {
                 if (searchCursorIndex > 0 && !query.isEmpty()) {
                     state.setSearchQuery(query.substring(0, searchCursorIndex - 1) + query.substring(searchCursorIndex));
                     searchCursorIndex--;
@@ -279,19 +279,19 @@ public class ModuleListPanel implements AutoCloseable {
                 }
                 yield true;
             }
-            case 261 -> {
+            case InputConstants.KEY_DELETE -> {
                 if (searchCursorIndex < query.length()) {
                     state.setSearchQuery(query.substring(0, searchCursorIndex) + query.substring(searchCursorIndex + 1));
                     markDirty();
                 }
                 yield true;
             }
-            case 263 -> {
+            case InputConstants.KEY_LEFT -> {
                 searchCursorIndex = Math.max(0, searchCursorIndex - 1);
                 markDirty();
                 yield true;
             }
-            case 262 -> {
+            case InputConstants.KEY_RIGHT -> {
                 searchCursorIndex = Math.min(state.getSearchQuery().length(), searchCursorIndex + 1);
                 markDirty();
                 yield true;

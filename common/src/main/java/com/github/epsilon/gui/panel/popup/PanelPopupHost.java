@@ -3,6 +3,7 @@ package com.github.epsilon.gui.panel.popup;
 import com.github.epsilon.gui.lib.UiRect;
 import com.github.epsilon.gui.lib.render.UiRenderBatch;
 import com.github.epsilon.gui.panel.utils.IMEFocusHelper;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.input.CharacterEvent;
 import net.minecraft.client.input.KeyEvent;
@@ -135,7 +136,7 @@ public class PanelPopupHost {
         if (activePopup == null) {
             return false;
         }
-        if (event.key() == 256) {
+        if (event.key() == InputConstants.KEY_ESCAPE) {
             close();
             return true;
         }

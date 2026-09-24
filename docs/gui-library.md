@@ -198,6 +198,8 @@ UiTree tree = UiTree.build(scope ->
   `mouseDragged(MouseButtonEvent, double, double)`；
 - `GuiEventListener.mouseScrolled(double, double, double, double)`；
 - `KeyEvent`、`CharacterEvent`、`MouseButtonEvent`、`PreeditEvent` 位于 `net.minecraft.client.input`。
+- GUI 内判定按键必须比较 `event.key()` 与 `InputConstants.KEY_*`（SDL 扫描码），鼠标按键使用 SDL 编号；
+  旧版 GLFW 键码（`256`/`259` 等）在 26.3 已不再匹配，这类数值只允许出现在 `KeybindUtils` 的配置迁移表中。
 
 Minecraft 输入事件应由 Screen 转换或路由到具体 Panel/Dropdown 控件，不应进入 `gui/lib` 的公共 API。
 
