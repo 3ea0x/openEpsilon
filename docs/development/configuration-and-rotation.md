@@ -99,3 +99,20 @@ Rotation priority 与 EventBus priority 是两套系统：
 - 需要等待命中后攻击/放置时，模块保存 pending 状态，每 tick 继续请求旋转，并用当前 `getRotation()`
   做 raytrace 后执行一次性动作。
 - 旋转接近玩家真实角度时自动结束，没有 callback 或 `isDone()`。
+
+## 静默旋转与移动结算
+
+`MovementFix` 是默认启用的 MOVEMENT 模块，`SilentRotationManager` 通过它决定静默旋转是否改变移动方向：
+
+- `onStrafe` 在 `MovementFix` 启用、存在活动旋转且玩家未在鞘翅飞行时，把 `StrafeEvent`（即 `Entity.moveRelative`
+  使用的 yaw）换成托管旋转，移动方向因此按静默朝向结算。
+- `onMoveInput`（priority `HIGH`）调用 `MovementFix.fixMovement`，把 `KeyboardInputEvent` 的 `forward`/`strafe`
+  从镜头系换算到静默系，与上一条相抵，最终效果是静默旋转不改变移动方向（移动跟随镜头）。
+- `onJump`、`onFallFlying` 按同样的条件把 `JumpEvent` / `FallFlyingEvent` 的 yaw（鞘翅还有 pitch）换成托管
+  旋转；`MovementFix` 关闭或玩家正在鞘翅飞行时不做这些替换，静默朝向会直接改变移动方向。
+
+要让移动跟随瞄准方向的模块，在 `KeyboardInputEvent` 上以低于 `HIGH` 的 priority（例如 `EventPriority.LOWEST`）
+监听即可：此时 `MovementFix` 已经换算完毕，把玩家原始 WASD（`keyUp`/`keyDown`/`keyLeft`/`keyRight`）原样写回
+`setForward`/`setStrafe`，原始输入按静默朝向解释就等于“沿瞄准方向移动”。不要在此基础上再按瞄准角度旋转一次
+输入，否则实际方向会偏成 `2 * 瞄准角度 - 镜头角度`。不接管移动时不要改写该事件，否则会连带取消 `MovementFix`
+的镜头系换算。

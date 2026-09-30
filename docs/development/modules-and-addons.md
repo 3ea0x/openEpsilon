@@ -44,6 +44,21 @@ public class MyModule extends Module {
 键位默认值为 `-1`。`Module.BindMode.Toggle` 在按下时切换，`Hold` 在按下时启用、松开时禁用。鼠标键由
 `KeybindUtils` 编码：26.3 起键盘保存 SDL 扫描码，鼠标键保存 SDL 编号（左 1、中 2、右 3）。
 
+## 自动使用物品（代替玩家按住右键）
+
+原版 `Minecraft#handleKeybinds` 每 tick 都用 `options.keyUse.isDown()` 判断还要不要继续使用物品，键不是
+按下状态就立刻 `releaseUsingItem`；而客户端 `isUsingItem()` 读的是实体数据标记，`LivingEntity.startUsingItem`
+只在服务端写入该标记再同步回来。所以直接调用 `gameMode.useItem(...)` 起手，等服务端把标记同步回来之后
+就会被原版松开，蓄力/进食保持不住。
+
+需要自动蓄力、自动进食这类“替玩家按住右键”的行为时，改为把 `mc.options.keyUse` 保持按下（`setDown(true)`），
+让原版自己完成起手与保持；不需要时再松开，由原版释放。`SpearAura` 的 Auto Charge 与 `NoSlowdown` 的
+GrimC0F 都按这个思路驱动蓄力/进食。
+
+释放要区分所有权：`SpearAura` 只在 `keyUse` 原本没按下时才接管，并用 `autoChargeKeyHeld` 标记这次按下是
+本模块做的，释放时只松自己的键；`NoSlowdown` 的 `stop()`/超时路径直接 `setDown(false)`，没有归属标记，
+会连带松开玩家自己按住的右键。模块禁用、目标丢失或让出控制权时要及时还原按键。
+
 ## Setting DSL
 
 `Module` 与 `EpsilonAddon` 都实现 `SettingHost`，共享同一套 DSL，也都支持适用类型的 `onChanged` 重载。

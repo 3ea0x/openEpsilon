@@ -60,6 +60,19 @@ Direct Velocity 模式通过该事件覆盖最终速度；默认 Input 模式不
 新代码不得再引用 `org.lwjgl.glfw.GLFW`，键盘查询使用 `InputConstants.isKeyDown(int)`，
 鼠标查询使用 `org.lwjgl.sdl.SDLMouse` 或 `MouseHandler` 的按压状态。
 
+## 移动输入链路
+
+移动方向的结算链路固定为：`KeyboardInputEvent`（`MixinKeyboardInput` 改写 `KeyboardInput.tick` 构造的
+`Input`）→ `LocalPlayer.applyInput()` 写入 `xxa`/`zza` → `Entity.moveRelative`（`MixinEntity` 把其中的
+`getYRot()` 调用换成 `StrafeEvent` 的 yaw）。
+
+- `MixinKeyboardInput` 用 `@ModifyExpressionValue` 改写 `new Input(...)` 的结果；事件携带
+  `forward`/`strafe`/`jump`/`shift`/`sprint`，由 `toNewInput()` 写回，因此监听器可以整体重写本 tick 的输入。
+- `StrafeEvent`、`JumpEvent`、`FallFlyingEvent` 是移动与跳跃路径上的朝向改写点：监听器设置 yaw（`FallFlyingEvent`
+  还有 pitch）即可改变原版结算时使用的朝向。
+- 静默旋转同时用到这两处：`StrafeEvent` 等提供朝向改写点，`KeyboardInputEvent` 用于抵消镜头系换算。
+  具体语义与模块改写输入时的要求见 [配置与旋转](configuration-and-rotation.md)。
+
 ## Mixin 配置
 
 | 平台 | Mixin 配置 | 访问扩展 |

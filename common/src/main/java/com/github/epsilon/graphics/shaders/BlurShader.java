@@ -36,6 +36,33 @@ public class BlurShader {
 
     private static final int MAX_SEGMENTS = 64;
 
+    /**
+     * 液态玻璃材质参数，由 {@link #renderGlass} 一次性交给着色器合成。
+     * <p>
+     * {@link #PLAIN} 表示“只做背景模糊”：不折射、不调色、不加高光，HUD / 世界侧的模糊继续走这一档，
+     * 外观与旧的纯模糊实现一致。
+     *
+     * @param refraction    边缘折射强度（framebuffer 像素；调用方负责从 GUI 单位换算），越大透镜感越强
+     * @param dispersion    边缘色散比例（0~1），0 表示不做三通道分离采样
+     * @param saturation    背景饱和度增益（1 = 不变）
+     * @param brightness    背景亮度增益（1 = 不变）
+     * @param innerShade    背光侧内阴影强度（0~1）
+     * @param specular      受光侧高光强度
+     * @param specularWidth 高光宽度（framebuffer 像素；调用方负责从 GUI 单位换算）
+     */
+    public record GlassMaterial(
+            float refraction,
+            float dispersion,
+            float saturation,
+            float brightness,
+            float innerShade,
+            float specular,
+            float specularWidth
+    ) {
+        /** 纯模糊材质：行为与引入液态玻璃材质之前完全一致。 */
+        public static final GlassMaterial PLAIN = new GlassMaterial(0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f);
+    }
+
     private static final Identifier BLUR_PATH = ResourceLocationUtils.getIdentifier("blur");
     private static final Identifier BLUR_3D_BOX_PATH = ResourceLocationUtils.getIdentifier("blur_3d_box");
 
@@ -77,15 +104,15 @@ public class BlurShader {
     }
 
     public void render(float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL, float blurStrength) {
-        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, 1.0f, null, null, 0);
+        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, 1.0f, null, null, 0, GlassMaterial.PLAIN);
     }
 
     public void render(float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL, float blurStrength, float[] segmentRects, float[] segmentRadii, int segmentCount) {
-        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, 1.0f, segmentRects, segmentRadii, segmentCount);
+        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, 1.0f, segmentRects, segmentRadii, segmentCount, GlassMaterial.PLAIN);
     }
 
     public void render(LuminRenderSystem.LuminRenderTarget source, float x, float y, float width, float height, float radius, float blurStrength) {
-        render(source, x, y, width, height, radius, radius, radius, radius, blurStrength, 1.0f, null, null, 0);
+        render(source, x, y, width, height, radius, radius, radius, radius, blurStrength, 1.0f, null, null, 0, GlassMaterial.PLAIN);
     }
 
     /**
@@ -96,10 +123,29 @@ public class BlurShader {
      * HUD/世界侧的模糊直接沿用其它重载（opacity = 1.0），不受 GUI 设置影响。
      */
     public void render(float x, float y, float width, float height, float radius, float blurStrength, float opacity) {
-        render(null, x, y, width, height, radius, radius, radius, radius, blurStrength, opacity, null, null, 0);
+        render(null, x, y, width, height, radius, radius, radius, radius, blurStrength, opacity, null, null, 0, GlassMaterial.PLAIN);
     }
 
-    private void render(LuminRenderSystem.LuminRenderTarget source, float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL, float blurStrength, float opacity, float[] segmentRects, float[] segmentRadii, int segmentCount) {
+    /**
+     * 用指定的液态玻璃材质渲染一块圆角模糊斑。
+     * <p>
+     * 与其它重载一样是立即执行的：着色器在同一帧里先把当前取样源模糊、折射、调色并叠加高光，
+     * 再把这些结果写回当前 target，因此调用方必须先提交本方法、再记录玻璃表面，否则会把已经画好的 UI 一起糊掉。
+     *
+     * @param opacity 表面不透明度（0~1）：GUI 传 Background Opacity，HUD / 世界侧传 1.0
+     */
+    public void renderGlass(float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL,
+                            float blurStrength, float opacity, GlassMaterial material) {
+        render(null, x, y, width, height, rTL, rTR, rBR, rBL, blurStrength, opacity, null, null, 0,
+                material == null ? GlassMaterial.PLAIN : material);
+    }
+
+    public void renderGlass(float x, float y, float width, float height, float radius,
+                            float blurStrength, float opacity, GlassMaterial material) {
+        renderGlass(x, y, width, height, radius, radius, radius, radius, blurStrength, opacity, material);
+    }
+
+    private void render(LuminRenderSystem.LuminRenderTarget source, float x, float y, float width, float height, float rTL, float rTR, float rBR, float rBL, float blurStrength, float opacity, float[] segmentRects, float[] segmentRadii, int segmentCount, GlassMaterial material) {
         this.ensureProgram();
 
         if (width <= 0.0f || height <= 0.0f) {
@@ -163,7 +209,10 @@ public class BlurShader {
                         sourceWidth, sourceHeight, quality,
                         pxW, pxH, pxX, pxY,
                         rTLPx, rTRPx, rBRPx, rBLPx,
-                        scale, targetHeight, Mth.clamp(opacity, 0.0f, 1.0f), segmentRects, segmentRadii, count
+                        scale, targetHeight, Mth.clamp(opacity, 0.0f, 1.0f),
+                        material.refraction(), material.dispersion(), material.saturation(), material.brightness(),
+                        material.innerShade(), material.specular(), material.specularWidth(),
+                        segmentRects, segmentRadii, count
                 )
         );
 
@@ -285,7 +334,8 @@ public class BlurShader {
     }
 
     private static int blurUniformsSize() {
-        Std140SizeCalculator calculator = new Std140SizeCalculator().putVec3().putVec4().putVec4().putVec4();
+        Std140SizeCalculator calculator = new Std140SizeCalculator().putVec3().putVec4().putVec4().putVec4()
+                .putVec4().putVec4();
         for (int i = 0; i < MAX_SEGMENTS * 2; i++) {
             calculator.putVec4();
         }
@@ -312,6 +362,13 @@ public class BlurShader {
             float scale,
             float targetHeight,
             float opacity,
+            float refraction,
+            float dispersion,
+            float saturation,
+            float brightness,
+            float innerShade,
+            float specular,
+            float specularWidth,
             float[] segmentRects,
             float[] segmentRadii,
             int segmentCount
@@ -323,7 +380,10 @@ public class BlurShader {
                     .putVec4(rectWidth, rectHeight, rectX, rectY)
                     .putVec4(radiusTopLeft, radiusTopRight, radiusBottomRight, radiusBottomLeft)
                     // SegmentInfo.y 承载模糊层的表面不透明度，着色器用它缩放最终 alpha。
-                    .putVec4(segmentCount, opacity, 0.0f, 0.0f);
+                    .putVec4(segmentCount, opacity, 0.0f, 0.0f)
+                    // GlassParams / GlassSpecular 承载液态玻璃材质；PLAIN 档两个 vec4 均为中性值。
+                    .putVec4(refraction, dispersion, saturation, brightness)
+                    .putVec4(innerShade, specular, specularWidth, 0.0f);
 
             for (int i = 0; i < MAX_SEGMENTS; i++) {
                 if (i < segmentCount) {

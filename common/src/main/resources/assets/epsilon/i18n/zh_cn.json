@@ -904,7 +904,40 @@
         "mace": "仅在重锤上交换",
         "trident": "仅在三叉戟上交换"
       },
-      "criticals": "刀暴",
+      "criticals": {
+        "_value": "刀暴",
+        "mode": {
+          "_value": "模式",
+          "packet": "发包",
+          "freeze": "冻结",
+          "grimgroundsimulation": "Grim 地面模拟",
+          "grimwall": "Grim 贴墙",
+          "test": "测试"
+        },
+        "ground only": "仅地面",
+        "target only": "仅目标",
+        "movement ok freeze": "允许移动（冻结）",
+        "movement ok ground": "允许移动（地面）",
+        "auto fake ground": "自动假地面",
+        "auto walk": "自动行走",
+        "set back mode": {
+          "_value": "拉回模式",
+          "simulation": "模拟",
+          "crashpackets": "崩溃包"
+        },
+        "delay swap": "延迟切回",
+        "in wall packet": "贴墙发包",
+        "in air freeze": "空中冻结",
+        "in wall freeze": "贴墙冻结",
+        "custom in wall height": "自定义贴墙高度",
+        "custom in wall packet height": "自定义贴墙发包高度",
+        "critical cooldown": "暴击冷却",
+        "confirm mode": {
+          "_value": "拉回确认方式",
+          "movepacket": "自己发移动包",
+          "teleportconfirm": "客户端确认包"
+        }
+      },
       "crystal aura": {
         "_value": "水晶光环",
         "activate key": "激活按键",
@@ -1273,6 +1306,8 @@
         "_value": "长矛光环",
         "range": "范围",
         "fov": "视野角度",
+        "auto charge": "自动蓄力",
+        "move": "移动",
         "rotation speed": "旋转速度",
         "rotation priority": {
           "_value": "旋转优先级",

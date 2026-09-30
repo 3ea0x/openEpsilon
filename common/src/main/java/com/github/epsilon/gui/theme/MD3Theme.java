@@ -1,5 +1,6 @@
 package com.github.epsilon.gui.theme;
 
+import com.github.epsilon.graphics.LuminRenderSystem;
 import com.github.epsilon.graphics.shaders.BlurShader;
 import com.github.epsilon.gui.lib.UiTree;
 import com.github.epsilon.modules.impl.ClientSetting;
@@ -129,18 +130,37 @@ public class MD3Theme {
     // ---------- 液态玻璃材质 ----------
     // 玻璃表面在绘制前先对同一区域执行实时背景模糊（submitGlassBlur），再叠上玻璃着色与边缘高光。
     // 由 Client Setting 的 “Liquid Glass” 开关独立控制，与 Theme Mode / Theme Preset 互不绑定。
-    public static final float GLASS_BLUR_STRENGTH = 12.0f;
+    /** 面板背景的模糊半径（像素）。iOS 液态玻璃的模糊比普通毛玻璃更重，取值偏大。 */
+    public static final float GLASS_BLUR_STRENGTH = 20.0f;
 
-    private static final int GLASS_PANE_ALPHA_DARK = 138;
-    private static final int GLASS_PANE_ALPHA_LIGHT = 162;
-    private static final int GLASS_SECTION_ALPHA_DARK = 120;
-    private static final int GLASS_SECTION_ALPHA_LIGHT = 148;
-    private static final int GLASS_POPUP_ALPHA_DARK = 168;
-    private static final int GLASS_POPUP_ALPHA_LIGHT = 180;
-    private static final int GLASS_ROW_ALPHA_DARK = 118;
-    private static final int GLASS_ROW_ALPHA_LIGHT = 146;
+    private static final int GLASS_PANE_ALPHA_DARK = 118;
+    private static final int GLASS_PANE_ALPHA_LIGHT = 140;
+    private static final int GLASS_SECTION_ALPHA_DARK = 104;
+    private static final int GLASS_SECTION_ALPHA_LIGHT = 128;
+    private static final int GLASS_POPUP_ALPHA_DARK = 150;
+    private static final int GLASS_POPUP_ALPHA_LIGHT = 162;
+    private static final int GLASS_ROW_ALPHA_DARK = 102;
+    private static final int GLASS_ROW_ALPHA_LIGHT = 128;
     private static final float GLASS_LIGHT_BLEND = 0.35f;
     private static final float GLASS_DARK_LIFT = 0.10f;
+
+    // 液态玻璃材质参数：着色器据此一次性完成边缘折射、色散、背景调色、内阴影与受光高光。
+    /** 边缘折射强度（像素）上限：越大透镜感越强，过大时边缘内容会被明显拉伸。 */
+    private static final float GLASS_REFRACTION_DARK = 11.0f;
+    private static final float GLASS_REFRACTION_LIGHT = 9.0f;
+    /** 边缘色散比例：三个通道使用不同折射强度，形成玻璃边缘的彩色描边。 */
+    private static final float GLASS_DISPERSION = 0.16f;
+    /** 背景饱和度增益：iOS 玻璃会明显增强背景色彩。 */
+    private static final float GLASS_SATURATION_DARK = 1.34f;
+    private static final float GLASS_SATURATION_LIGHT = 1.22f;
+    /** 背景亮度增益：Dark 模式轻微提亮，避免背景发闷。 */
+    private static final float GLASS_BRIGHTNESS_DARK = 1.08f;
+    private static final float GLASS_BRIGHTNESS_LIGHT = 1.03f;
+    /** 背光侧内阴影强度，给玻璃一点厚度。 */
+    private static final float GLASS_INNER_SHADE = 0.16f;
+    /** 受光侧高光强度与宽度（像素）。 */
+    private static final float GLASS_SPECULAR = 1.15f;
+    private static final float GLASS_SPECULAR_WIDTH = 9.0f;
 
     /** 液态玻璃是否启用：独立开关，不影响 Theme Mode / Theme Preset 配色。 */
     public static boolean isGlassEnabled() {
@@ -161,6 +181,31 @@ public class MD3Theme {
      */
     public static int glassAlpha(int alpha) {
         return Mth.clamp(Math.round(alpha * glassOpacity()), 0, 255);
+    }
+
+    /**
+     * 按当前主题与圆角半径生成液态玻璃材质参数。
+     * <p>
+     * 折射与高光宽度跟随圆角半径缩放：小尺寸弹窗（CARD_RADIUS）如果套用面板（PANEL_RADIUS）的折射强度，
+     * 边缘会被拉伸得过度变形，因此这里按半径取较小值。
+     *
+     * @param radius 目标表面的圆角半径（GUI 单位）
+     */
+    public static BlurShader.GlassMaterial glassMaterial(float radius) {
+        boolean light = isLightTheme();
+        float scale = Math.max(1.0f, (float) LuminRenderSystem.getGuiScale());
+        float refractionLimit = light ? GLASS_REFRACTION_LIGHT : GLASS_REFRACTION_DARK;
+        // 材质里的长度（折射强度、高光宽度）按 framebuffer 像素表达，而调用方传的是 Epsilon GUI 单位，
+        // 这里统一换算一次，保证不同 GUI 缩放下玻璃的透镜与高光宽度观感一致。
+        return new BlurShader.GlassMaterial(
+                Math.max(0.0f, Math.min(refractionLimit, radius * 0.65f)) * scale,
+                GLASS_DISPERSION,
+                light ? GLASS_SATURATION_LIGHT : GLASS_SATURATION_DARK,
+                light ? GLASS_BRIGHTNESS_LIGHT : GLASS_BRIGHTNESS_DARK,
+                GLASS_INNER_SHADE,
+                GLASS_SPECULAR,
+                Math.max(3.0f, Math.min(GLASS_SPECULAR_WIDTH, radius * 0.6f)) * scale
+        );
     }
 
     // ---------- GUI 窗口背景 ----------
@@ -228,8 +273,10 @@ public class MD3Theme {
     /**
      * 对圆角区域执行实时背景模糊。
      * <p>
-     * {@link BlurShader} 会立即把当前帧目标（面板/下拉菜单的离屏 target 优先，否则主 target）的颜色拷入临时纹理并模糊后回写，
-     * 因此必须在同一帧中先调用本方法、再记录玻璃表面的绘制命令，否则模糊会覆盖已经画好的 UI。
+     * {@link BlurShader} 会立即把当前帧目标（面板/下拉菜单的离屏 target 优先，否则主 target）的颜色拷入临时纹理，
+     * 在同一次绘制里完成背景模糊、边缘折射、背景调色、内阴影与受光高光后再回写，
+     * 因此必须在同一帧中先调用本方法、再记录玻璃表面的绘制命令，否则会把已经画好的 UI 一起糊掉。
+     * 面板内容之上仍会叠一层 {@link #glassPane} 之类的玻璃着色，两者叠加才是完整的液态玻璃表面。
      */
     public static void submitGlassBlur(float x, float y, float width, float height, float radius) {
         if (!isGlassEnabled() || width <= 0.0f || height <= 0.0f) {
@@ -242,7 +289,7 @@ public class MD3Theme {
         if (opacity <= 0.0f) {
             return;
         }
-        BlurShader.INSTANCE.render(x, y, width, height, radius, GLASS_BLUR_STRENGTH, opacity);
+        BlurShader.INSTANCE.renderGlass(x, y, width, height, radius, GLASS_BLUR_STRENGTH, opacity, glassMaterial(radius));
     }
 
     /**
@@ -254,21 +301,22 @@ public class MD3Theme {
         return glassAlpha(backgroundAlpha(alpha));
     }
 
-    /** 玻璃边缘：一圈细描边 + 顶部受光的高光线；随 Glass Opacity 与 Background Opacity 一起缩放。 */
+    /**
+     * 玻璃边缘装饰：一圈贴边描边，随 Glass Opacity 与 Background Opacity 一起缩放。
+     * <p>
+     * 方向性高光、内阴影与透镜折射由 {@link BlurShader} 的液态玻璃材质在模糊层完成，
+     * 这里只补最外侧的一圈轮廓；不再叠顶部光斑，否则会在面板上沿留下一条突兀的白条。
+     */
     public static void glassRim(UiTree.Scope scope, float x, float y, float width, float height, float radius) {
         if (!isGlassEnabled() || scope == null || width <= 0.0f || height <= 0.0f) {
             return;
         }
         boolean light = isLightTheme();
-        Color edge = light ? withAlpha(OUTLINE, glassRimAlpha(110)) : withAlpha(Color.WHITE, glassRimAlpha(32));
-        int glintAlpha = glassRimAlpha(light ? 96 : 120);
-        if (edge.getAlpha() <= 0 && glintAlpha <= 0) {
+        Color edge = light ? withAlpha(OUTLINE, glassRimAlpha(120)) : withAlpha(Color.WHITE, glassRimAlpha(74));
+        if (edge.getAlpha() <= 0) {
             return;
         }
         scope.outline(x, y, width, height, radius, 1.0f, edge);
-        float inset = Math.min(Math.max(radius * 0.55f, 3.0f), 12.0f);
-        Color glint = withAlpha(Color.WHITE, glintAlpha);
-        scope.rect(x + inset, y + 1.1f, width - inset * 2.0f, 1.1f, glint);
     }
 
     public static Color lerp(Color start, Color end, float delta) {

@@ -85,7 +85,8 @@ GuiRenderer.render HEAD
 
 ## 后处理与 shader
 
-- `BlurShader.INSTANCE.render(...)` 做 2D 区域模糊，`render3DBox(AABB, strength)` 由 3D scheduler 调用。
+- `BlurShader.INSTANCE.render(...)` 做 2D 区域模糊（固定 `BlurShader.GlassMaterial.PLAIN`，HUD / 世界侧走这一档）；
+  `renderGlass(...)` 带入液态玻璃材质（见下）；`render3DBox(AABB, strength)` 由 3D scheduler 调用。
 - `FXAAShader.INSTANCE.renderMainTarget()`、`FilterShader.INSTANCE.renderToMainTarget(color)`、
   `MotionBlurShader.INSTANCE` 直接作用于主 render target，由对应模块驱动。
 - `CustomSkyShader.INSTANCE.render(target, CustomSky.INSTANCE)` 由 `MixinLevelRenderer` 在天空阶段调用。
@@ -94,6 +95,32 @@ GuiRenderer.render HEAD
 
 调用后处理前必须核验 render target 尺寸、采样器和当前 `RenderPipeline` 状态，避免引用已释放的
 texture/view；GPU 资源只由创建它们的渲染线程释放。
+
+### 液态玻璃材质（BlurShader.GlassMaterial）
+
+`BlurShader.GlassMaterial` 是 `record(refraction, dispersion, saturation, brightness, innerShade, specular,
+specularWidth)`，`PLAIN` 为全部中性值的一档。`renderGlass(...)` 把材质交给 `blur.fsh` 一次合成，`material`
+为 `null` 时按 `PLAIN` 处理；其它 `render(...)` 重载固定传 `PLAIN`，所以 HUD / 世界侧的模糊仍是纯背景模糊，
+外观与引入玻璃材质之前一致。材质参数由 GUI 侧生成，见 [GUI 架构](../gui.md)。
+
+`blur.fsh` 在一块模糊斑内完成下列合成，参数全部来自 `GlassMaterial`：
+
+- 形状场：逐段求圆角矩形的有符号距离，按并集累积 alpha，并保留最近形状的距离场与局部坐标用于求法线。
+- 边缘折射：`refraction` 越靠近边缘越强，采样点沿外法线反方向推向形状内部，形成透镜放大；衰减宽度由
+  `specularWidth` 决定。
+- 色散：`refraction` 与 `dispersion` 都大于 0 时，红/绿/蓝各用一次不同强度的折射偏移采样并取各自通道；
+  否则只采样一次。GUI 走三通道，HUD / 世界侧走单次。
+- 模糊：48 个样本按黄金角在采样圆盘内铺开并乘高斯权重（`sampleBackdrop`）；透明样本用中心像素顶替，
+  避免透明区的黑色被拖进玻璃边缘。
+- 颜色分级：按 `saturation` 对亮度做线性插值，再乘 `brightness`。
+- 受光面：固定光源方向（屏幕左上）与边缘法线决定贴边细线高光（`specular`）与向内扩散的柔光，背光侧按
+  `innerShade` 叠一层内阴影。
+- 单位与不透明度：`refraction`、`specularWidth` 以 framebuffer 像素表达，调用方负责换算；`SegmentInfo.y`
+  承载表面不透明度（GUI 传 Background Opacity，HUD / 世界侧传 `1.0`），着色器用它缩放输出 alpha，低于
+  0.001 时直接丢弃并跳过全部采样。
+
+渲染立即执行：着色器先模糊、折射、调色并叠加高光，再把结果写回当前 target，因此调用方必须先提交
+`renderGlass`、再记录玻璃表面，否则会把已经画好的 UI 一起糊掉。
 
 ## 26.3 GPU 抽象（renderpearl）
 

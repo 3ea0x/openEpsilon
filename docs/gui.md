@@ -103,12 +103,26 @@ scissor 通过 `LuminRenderSystem.toFramebufferScissor(...)` 转换；布局、�
 - `MD3Theme.glassPane` / `glassSection` / `glassPopup` / `glassRow` 只改不透明度与轻微提亮，保留主题色相；
   关闭开关时原样返回传入颜色（`glassPopup` 保持原本的全不透明表面）。
 - `MD3Theme.glassOpacity()` 读取倍率，`MD3Theme.glassAlpha(int)` 是唯一的缩放入口；只有“因启用玻璃而降低
-  不透明度”的颜色可以经过它（玻璃表面、`rowSurface` 的高亮叠加、`DropdownTheme` 的模块行、`glassRim` 的边缘
-  与高光），普通不透明表面不得缩放，否则会连带改变非玻璃配色。
+  不透明度”的颜色可以经过它（玻璃表面、`rowSurface` 的高亮叠加、`DropdownTheme` 的模块行、`glassRim` 的
+  边缘描边），普通不透明表面不得缩放，否则会连带改变非玻璃配色。
 - 倍率不影响实时背景模糊：`submitGlassBlur` 始终按 `GLASS_BLUR_STRENGTH` 执行，只由 Liquid Glass 开关控制。
-- `MD3Theme.submitGlassBlur(x, y, w, h, radius)` 提交实时背景模糊，内部走 `BlurShader.INSTANCE.render`。
+- `MD3Theme.submitGlassBlur(x, y, w, h, radius)` 提交实时背景模糊，内部走 `BlurShader.INSTANCE.renderGlass`。
   该调用**立即执行**：先模糊、再记录玻璃表面，否则会把已经画好的 UI 一起糊掉。
-- `MD3Theme.glassRim(scope, ...)` 画玻璃边缘的细描边与顶部高光线，必须在玻璃表面之后调用。
+- `MD3Theme.glassRim(scope, ...)` 画玻璃边缘的贴边描边，必须在玻璃表面之后调用；方向性高光、内阴影与透镜
+  折射由模糊层的材质生成，这里不再叠顶部光斑。
+
+### 材质参数（MD3Theme.glassMaterial）
+
+模糊层本身就是一块玻璃材质：`MD3Theme.glassMaterial(radius)` 按当前主题（Dark / Light）与圆角半径生成
+`BlurShader.GlassMaterial`，由 `submitGlassBlur` 连同模糊半径一起交给 `BlurShader.INSTANCE.renderGlass(...)`。
+着色器如何合成这块材质见 [渲染](development/rendering.md)，GUI 侧只负责提供参数：
+
+- 折射强度上限与高光宽度都随圆角半径缩放，`CARD_RADIUS` 这类小弹窗不会套用面板口径而变形。
+- 材质里的长度以 framebuffer 像素表达，`glassMaterial` 按 `LuminRenderSystem.getGuiScale()` 从 Epsilon GUI
+  单位换算一次，保证不同 GUI 缩放下透镜与高光宽度观感一致。
+- 色散、内阴影为固定值，饱和度与亮度按 Dark / Light 各一套系数。
+- 材质只描述模糊层；面板内容之上仍会叠一层 `glassPane` / `glassSection` / `glassPopup` 之类的玻璃着色，
+  两者叠加才是完整的液态玻璃表面。
 
 Panel 与 Dropdown 都把 UI 画进离屏 target，`BlurShader` 的取样源因此是主 target（世界/背景），
 结果写回离屏 target，正好形成“背景模糊 + 玻璃叠加”的效果。
@@ -132,10 +146,10 @@ Panel 与 Dropdown 都把 UI 画进离屏 target，`BlurShader` 的取样源因�
   这些保持全不透明以保证可读性与可点性。
 - **背景模糊层本身也随本倍率淡出**。`submitGlassBlur` 写入的是一块 alpha≈1 的模糊斑，它才是面板“背景”的实体；
   不缩放它就会出现「背景透明度调到 0，背景仍然发黑、发虚」——Glass Opacity 也压不住这一层。实现方式是给
-  `BlurShader` 增加表面不透明度参数：着色器在 `SegmentInfo.y` 取该值并缩放输出 alpha，`SegmentInfo` 原有的
-  `y/z/w` 未使用，因此 UBO 尺寸与布局完全不变。HUD/世界侧的模糊沿用 `opacity = 1.0` 的重载，不受 GUI 设置影响。
-- `glassRim` 的边缘与高光同时乘 `Glass Opacity` 与 `Background Opacity`；背景全透明时二者都归零，
-  否则会留下悬空边框和一条白色高光线（观感上像散光）。
+  `BlurShader` 的模糊层加上表面不透明度参数，`submitGlassBlur` 传入 `Background Opacity`；HUD / 世界侧的模糊
+  固定传 `1.0`，不受 GUI 设置影响（着色器侧取值见 [渲染](development/rendering.md)）。
+- `glassRim` 的边缘描边同时乘 `Glass Opacity` 与 `Background Opacity`；背景全透明时归零，
+  否则会留下悬空的边框。顶部高光由 `BlurShader` 的材质按法线方向生成，不再额外叠一条白线。
 - Dropdown 模式独有的整屏模态遮罩（`DropdownTheme.scrim()`，纯黑 alpha 50）也随本倍率淡出，
   否则背景调透明后整个屏幕仍被压暗；Panel 模式没有这层遮罩。
 

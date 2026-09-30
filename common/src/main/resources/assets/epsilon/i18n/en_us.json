@@ -904,7 +904,40 @@
         "mace": "Mace",
         "trident": "Trident"
       },
-      "criticals": "Criticals",
+      "criticals": {
+        "_value": "Criticals",
+        "mode": {
+          "_value": "Mode",
+          "packet": "Packet",
+          "freeze": "Freeze",
+          "grimgroundsimulation": "Grim Ground Simulation",
+          "grimwall": "Grim Wall",
+          "test": "Test"
+        },
+        "ground only": "Ground Only",
+        "target only": "Target Only",
+        "movement ok freeze": "Movement Ok Freeze",
+        "movement ok ground": "Movement Ok Ground",
+        "auto fake ground": "Auto Fake Ground",
+        "auto walk": "Auto Walk",
+        "set back mode": {
+          "_value": "Set Back Mode",
+          "simulation": "Simulation",
+          "crashpackets": "Crash Packets"
+        },
+        "delay swap": "Delay Swap",
+        "in wall packet": "In Wall Packet",
+        "in air freeze": "In Air Freeze",
+        "in wall freeze": "In Wall Freeze",
+        "custom in wall height": "Custom In Wall Height",
+        "custom in wall packet height": "Custom In Wall Packet Height",
+        "critical cooldown": "Critical Cooldown",
+        "confirm mode": {
+          "_value": "Confirm Mode",
+          "movepacket": "Move Packet",
+          "teleportconfirm": "Teleport Confirm"
+        }
+      },
       "crystal aura": {
         "_value": "Crystal Aura",
         "activate key": "Activate Key",
@@ -1273,6 +1306,8 @@
         "_value": "Spear Aura",
         "range": "Range",
         "fov": "FOV",
+        "auto charge": "Auto Charge",
+        "move": "Move",
         "rotation speed": "Rotation Speed",
         "rotation priority": {
           "_value": "Rotation Priority",
