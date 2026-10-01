@@ -1438,6 +1438,7 @@
         "max targets": "最大目标数",
         "target range": "目标范围",
         "yaw speed": "转头速度",
+        "pre rotation": "预转头",
         "place rotation range": "放置转头范围",
         "break rotation range": "破坏转头范围",
         "eating pause": "进食暂停",

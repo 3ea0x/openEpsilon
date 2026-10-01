@@ -1438,6 +1438,7 @@
         "max targets": "Max Targets",
         "target range": "Target Range",
         "yaw speed": "Yaw Speed",
+        "pre rotation": "Pre Rotation",
         "place rotation range": "Place Rotation Range",
         "break rotation range": "Break Rotation Range",
         "eating pause": "Eating Pause",

@@ -14,7 +14,6 @@ import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
-import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.SettingGroup;
 import com.github.epsilon.settings.impl.*;
 import com.github.epsilon.utils.combat.DamageUtils;
@@ -89,10 +88,9 @@ public class ZealotCrystalPlus extends Module {
     private final IntSetting maxTargets = intSetting("Max Targets", 4, 1, 10, 1).group(sgGeneral);
     private final DoubleSetting targetRange = doubleSetting("Target Range", 16.0, 0.0, 32.0, 0.5).group(sgGeneral);
     private final DoubleSetting yawSpeed = doubleSetting("Yaw Speed", 45.0, 5.0, 180.0, 5.0).group(sgGeneral);
+    private final BoolSetting preRotation = boolSetting("Pre Rotation", true).group(sgGeneral);
     private final DoubleSetting placeRotationRange = doubleSetting("Place Rotation Range", 0.0, 0.0, 180.0, 5.0).group(sgGeneral);
     private final DoubleSetting breakRotationRange = doubleSetting("Break Rotation Range", 90.0, 0.0, 180.0, 5.0).group(sgGeneral);
-    /** 模块级转头方式；仅在 ClientSetting 的 Rotation Scope 为 Custom 时生效。 */
-    private final EnumSetting<RotationManager.RotationOption> rotationType = enumSetting("Rotation Type", RotationManager.RotationOption.Silent, ClientSetting.INSTANCE::isCustomRotationScope).group(sgGeneral);
     private final BoolSetting eatingPause = boolSetting("Eating Pause", false).group(sgGeneral);
     private final IntSetting updateDelay = intSetting("Update Delay", 5, 0, 250, 1).group(sgGeneral);
     private final IntSetting globalDelay = intSetting("Global Delay", 1_000_000, 1_000, 10_000_000, 1_000).group(sgGeneral);
@@ -205,6 +203,7 @@ public class ZealotCrystalPlus extends Module {
     private int explosionsThisWindow;
 
     private static final int EXPLOSION_SAMPLE_SIZE = 8;
+    private static final float ROTATION_READY_EPSILON = 1.0f;
 
     @Override
     protected void onEnable() {
@@ -264,6 +263,11 @@ public class ZealotCrystalPlus extends Module {
         PlaceInfo prePlace = getValidPlaceInfo(cachedRotationPlaceInfo, false);
         target = resolveCurrentTarget(result, prePlace);
 
+        boolean prioritizeBreak = preRotation.getValue() && shouldPrioritizeBreak(preBreak);
+        if (preRotation.getValue()) {
+            prepareRotation(preBreak, prePlace);
+        }
+
         boolean acted = false;
         BreakPlan actionBreak = getActionBreakPlan();
         if (breakMode.getValue() != BreakMode.Off && breakTimer.passedMillise(breakDelay.getValue()) && actionBreak != null) {
@@ -271,7 +275,7 @@ public class ZealotCrystalPlus extends Module {
         }
 
         PlaceInfo actionPlace = getActionPlaceInfo();
-        if (!acted && placeMode.getValue() != PlaceMode.Off && placeTimer.passedMillise(placeDelay.getValue()) && actionPlace != null && shouldAttemptPlace(actionPlace)) {
+        if (!acted && !prioritizeBreak && placeMode.getValue() != PlaceMode.Off && placeTimer.passedMillise(placeDelay.getValue()) && actionPlace != null && shouldAttemptPlace(actionPlace)) {
             acted = placeDirect(actionPlace, false);
         }
 
@@ -977,6 +981,14 @@ public class ZealotCrystalPlus extends Module {
         if (!crystals.found()) return false;
 
         InteractionHand hand = crystals.getHand();
+        BlockHitResult hitResult = new BlockHitResult(placeInfo.hitVec(), placeInfo.side(), placeInfo.blockPos(), false);
+
+        Rot2f rotation = placeInfo.rotation();
+        RotationManager.INSTANCE.setRotations(rotation, getRotationSpeed(), null, Priority.High);
+        if (preRotation.getValue() && !isRotationReady(rotation)) {
+            return true;
+        }
+
         if (hand == InteractionHand.MAIN_HAND && crystals.slot() != player.getInventory().getSelectedSlot() && crystals.slot() != 40) {
             switch (placeSwitchMode.getValue()) {
                 case Off -> {
@@ -994,9 +1006,6 @@ public class ZealotCrystalPlus extends Module {
         }
 
         InteractionHand finalHand = hand;
-        BlockHitResult hitResult = new BlockHitResult(placeInfo.hitVec(), placeInfo.side(), placeInfo.blockPos(), false);
-
-        RotationManager.request(rotationType.getValue(), placeInfo.rotation(), getRotationSpeed(), null, Priority.High);
 
         InteractionResult result = mc.gameMode.useItemOn(mc.player, finalHand, hitResult);
         if (result.consumesAction()) {
@@ -1023,21 +1032,24 @@ public class ZealotCrystalPlus extends Module {
         }
 
         if (mc.player == null) return false;
-        if (mc.player.hasEffect(MobEffects.WEAKNESS) && !isHoldingTool()) {
-            switch (antiWeakness.getValue()) {
-                case Off -> {
-                    return false;
-                }
-                case Legit, Ghost -> {
-                    int weaponSlot = findWeaponSlot();
-                    if (weaponSlot == -1) return false;
-                    InvUtils.swap(weaponSlot, antiWeakness.getValue() == SwitchMode.Ghost);
-                    lastSwapTime = System.currentTimeMillis();
-                }
-            }
+        boolean needsAntiWeaknessSwap = mc.player.hasEffect(MobEffects.WEAKNESS) && !isHoldingTool();
+        int weaponSlot = -1;
+        if (needsAntiWeaknessSwap) {
+            if (antiWeakness.getValue() == SwitchMode.Off) return false;
+            weaponSlot = findWeaponSlot();
+            if (weaponSlot == -1) return false;
         }
 
-        RotationManager.request(rotationType.getValue(), RotationUtils.calculate(breakPlan.pos()), getRotationSpeed(), null, Priority.High);
+        Rot2f rotation = RotationUtils.calculate(breakPlan.pos());
+        RotationManager.INSTANCE.setRotations(rotation, getRotationSpeed(), null, Priority.High);
+        if (preRotation.getValue() && !isRotationReady(rotation)) {
+            return true;
+        }
+
+        if (needsAntiWeaknessSwap) {
+            InvUtils.swap(weaponSlot, antiWeakness.getValue() == SwitchMode.Ghost);
+            lastSwapTime = System.currentTimeMillis();
+        }
 
         Entity current = mc.level.getEntity(breakPlan.entityId());
         if (!(current instanceof EndCrystal currentCrystal) || !currentCrystal.isAlive()) {
@@ -1543,6 +1555,48 @@ public class ZealotCrystalPlus extends Module {
 
     private double getRotationSpeed() {
         return Math.max(1.8, yawSpeed.getValue());
+    }
+
+    private void prepareRotation(BreakPlan breakPlan, PlaceInfo placeInfo) {
+        if (shouldPrioritizeBreak(breakPlan)) {
+            RotationManager.INSTANCE.setRotations(
+                    RotationUtils.calculate(breakPlan.pos()),
+                    getRotationSpeed(),
+                    null,
+                    Priority.High
+            );
+            return;
+        }
+
+        if (placeMode.getValue() != PlaceMode.Off && placeInfo != null) {
+            RotationManager.INSTANCE.setRotations(placeInfo.rotation(), getRotationSpeed(), null, Priority.High);
+        }
+    }
+
+    private boolean shouldPrioritizeBreak(BreakPlan breakPlan) {
+        return preRotation.getValue()
+                && breakMode.getValue() != BreakMode.Off
+                && breakTimer.passedMillise(breakDelay.getValue())
+                && breakPlan != null
+                && canAttemptBreak();
+    }
+
+    private boolean canAttemptBreak() {
+        if (placeSwitchMode.getValue() != SwitchMode.Ghost
+                && antiWeakness.getValue() != SwitchMode.Ghost
+                && System.currentTimeMillis() - lastSwapTime < swapDelay.getValue() * 50L) {
+            return false;
+        }
+
+        if (mc.player == null || !mc.player.hasEffect(MobEffects.WEAKNESS) || isHoldingTool()) {
+            return true;
+        }
+
+        return antiWeakness.getValue() != SwitchMode.Off && findWeaponSlot() != -1;
+    }
+
+    private boolean isRotationReady(Rot2f targetRotation) {
+        return getRotationDelta(RotationManager.INSTANCE.getRotation(), targetRotation) <= ROTATION_READY_EPSILON;
     }
 
     private float getRotationDelta(Rot2f from, Rot2f to) {
