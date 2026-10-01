@@ -52,12 +52,18 @@ public class MyModule extends Module {
 就会被原版松开，蓄力/进食保持不住。
 
 需要自动蓄力、自动进食这类“替玩家按住右键”的行为时，改为把 `mc.options.keyUse` 保持按下（`setDown(true)`），
-让原版自己完成起手与保持；不需要时再松开，由原版释放。`SpearAura` 的 Auto Charge 与 `NoSlowdown` 的
-GrimC0F 都按这个思路驱动蓄力/进食。
+让原版自己完成起手与保持；不需要时再松开，由原版释放。触发条件只应看“手上拿着对应物品”这类由本模块直接
+控制的状态，不要绑定到目标锁定、瞄准阶段等无关条件上；`SpearAura` 的 Auto Charge 就是手持长矛即蓄力，
+与有没有锁定目标无关。`NoSlowdown` 的 GrimC0F 也按这个思路驱动进食。
 
 释放要区分所有权：`SpearAura` 只在 `keyUse` 原本没按下时才接管，并用 `autoChargeKeyHeld` 标记这次按下是
 本模块做的，释放时只松自己的键；`NoSlowdown` 的 `stop()`/超时路径直接 `setDown(false)`，没有归属标记，
-会连带松开玩家自己按住的右键。模块禁用、目标丢失或让出控制权时要及时还原按键。
+会连带松开玩家自己按住的右键。模块禁用、不再手持对应物品或让出控制权时要及时还原按键。
+
+按住右键的副作用是左键平A失效：蓄力期间原版 `handleKeybinds` 走 `isUsingItem()` 分支，只会把 `keyAttack`
+的点击 `consumeClick` 掉而不结算。需要保留平A的模块要在检测到左键按下时先松开右键，并在 `isUsingItem()`
+变回 false 之后用 `KeyMapping.click(mc.options.keyAttack.key)` 把这次被丢掉的点击补发一次（`SpearAura` 的
+`pendingAttackClick` 就是这个用途，等待期间不能重新按住右键，并带 tick 超时避免补发落到很久以后）。
 
 ## Setting DSL
 

@@ -30,6 +30,7 @@ import com.github.epsilon.utils.rotation.RaytraceUtils;
 import com.github.epsilon.utils.rotation.Rot2f;
 import com.github.epsilon.utils.rotation.RotationUtils;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
@@ -45,8 +46,9 @@ import java.awt.*;
 import java.util.List;
 
 /**
- * 长矛光环：自动蓄力长矛，静默瞄准目标并让移动按瞄准方向结算；只有与目标的相对速度达到长矛 kinetic 伤害
- * 门限（4.6 m/s）时才转头和移动，kinetic 命中后延迟 1 tick 补一记重锤，然后暂停瞄准/移动等待目标无敌帧结束。
+ * 长矛光环：只要主手拿着长矛就自动蓄力，静默瞄准目标并让移动按瞄准方向结算；只有与目标的相对速度达到长矛
+ * kinetic 伤害门限（4.6 m/s）时才转头和移动，kinetic 命中后延迟 1 tick 补一记重锤，然后暂停瞄准/移动等待
+ * 目标无敌帧结束。
  */
 public class SpearAura extends Module {
 
@@ -68,6 +70,9 @@ public class SpearAura extends Module {
      * 的最后一个参数），低于它时 {@code KineticWeapon#damageEntities} 不会结算伤害，也就不会触发 kinetic 命中。
      */
     private static final double SPEAR_MIN_RELATIVE_SPEED = 4.6;
+
+    /** 补发被蓄力丢掉的左键点击时最多等待的 tick 数，足够服务端把使用状态同步回来。 */
+    private static final int ATTACK_CLICK_RETRY_TICKS = 10;
 
     private static final int MAX_TARGETS = 64;
 
@@ -154,10 +159,18 @@ public class SpearAura extends Module {
     /** 命中后暂停瞄准/移动，等待目标无敌帧结束。 */
     private int hitPauseTicks;
 
-    /** 本 tick 是否需要保持长矛蓄力，由 {@link #onClientTick} 的状态机决定。 */
+    /** 本 tick 是否需要保持长矛蓄力；只要主手拿着长矛就为 true，与是否锁定目标无关。 */
     private boolean autoChargeWanted;
     /** 本模块是否替玩家按住了右键；只有本字段为 true 时才允许松开按键。 */
     private boolean autoChargeKeyHeld;
+    /**
+     * 蓄力期间被原版丢掉的左键点击的剩余等待 tick 数。
+     * <p>
+     * 按住右键时 {@code Minecraft#handleKeybinds} 走 {@code isUsingItem()} 分支，只会把
+     * {@code keyAttack} 的点击 {@code consumeClick} 掉而不结算，所以玩家这一下点击等于白按；等使用状态
+     * 结束后需要补发一次。为 0 表示没有待补的点击。
+     */
+    private int pendingAttackClick;
 
     @Override
     public String getInfo() {
@@ -180,7 +193,10 @@ public class SpearAura extends Module {
 
         localPlayerId = mc.player.getId();
         forceForward = false;
-        autoChargeWanted = false;
+        // 自动蓄力只看手上有没有矛，与是否锁定目标无关。按键由 priority 更低的
+        // onClientTickAutoCharge 同步，实际起手发生在同一 tick 稍后的 Minecraft#handleKeybinds，
+        // 那时本 tick 的静默旋转已经提交，UseItem 包会带上瞄准朝向。
+        autoChargeWanted = isHoldingSpear();
 
         targets = TargetManager.INSTANCE.acquireTargets(TargetRequest.of(
                 range.getValue(),
@@ -211,33 +227,27 @@ public class SpearAura extends Module {
             return;
         }
 
-        // 命中后的无敌帧窗口内只暂停，不再瞄准/移动/蓄力；重锤补刀窗口例外。
+        // 命中后的无敌帧窗口内只暂停，不再瞄准/移动；重锤补刀窗口例外。蓄力不受影响。
         if (hitPauseTicks > 0 && spearMaceDelay <= 0) {
             hitPauseTicks--;
             aimRotations = null;
             return;
         }
 
-        // 目标贴脸时只自动蓄力，不转头、不移动。
+        // 目标贴脸时只保持蓄力，不转头、不移动。
         if (RotationUtils.getEyeDistanceToEntity(target) <= SPEAR_MIN_TRACK_DISTANCE) {
             aimRotations = null;
-            autoChargeWanted = true;
             return;
         }
 
-        // 相对速度不够时 kinetic 命中不结算伤害：保持蓄力，但不转头也不接管移动。
+        // 相对速度不够时 kinetic 命中不结算伤害：不转头也不接管移动。
         if (getRelativeSpeedTo(target) <= SPEAR_MIN_RELATIVE_SPEED) {
             aimRotations = null;
-            autoChargeWanted = true;
             return;
         }
 
         // 已经确认在瞄准，Move 打开就允许本 tick 在没有输入时自动沿瞄准方向前进。
         forceForward = move.getValue();
-        // 已锁定目标且不在暂停/补刀窗口内就保持蓄力；视线被挡只影响转头，不打断蓄力。
-        // 按键由 priority 更低的 onClientTickAutoCharge 同步，实际起手发生在同一 tick 稍后的
-        // Minecraft#handleKeybinds，那时下面的静默旋转已经提交，UseItem 包会带上瞄准朝向。
-        autoChargeWanted = true;
 
         // 静默瞄准；UseItem 包会由 SilentRotationManager 改写成这个朝向。
         aimRotations = RotationUtils.calculate(target, true, range.getValue());
@@ -382,11 +392,49 @@ public class SpearAura extends Module {
      * 等服务端把标记同步回来之后就会被原版当场松开，蓄力永远保持不住。这里改为替玩家按住右键，让原版
      * 自己完成起手与保持；不需要蓄力时再松开按键，由原版释放。
      * <p>
-     * 必须晚于 {@link #onClientTick} 执行（priority 更低），否则读到的是上一 tick 的瞄准状态。
+     * 触发条件只有 {@code Auto Charge} 与“主手拿着长矛”，不看有没有锁定目标；只有 kinetic 命中后要补重锤的
+     * 那一 tick 例外（{@code spearHitPending} / {@code spearMaceDelay}），否则按住右键会立刻把补刀用的松开
+     * 动作顶掉。
+     * <p>
+     * 左键按住时让位给平A：长矛的穿刺攻击只在 {@code handleKeybinds} 的点击分支结算，而蓄力期间原版会把点击
+     * 直接丢掉，所以先松开蓄力，并把被丢掉的那一次点击补回去，玩家松手后自动继续蓄力。
+     * <p>
+     * 必须晚于 {@link #onClientTick} 执行（priority 更低），否则读到的是上一 tick 的状态。
      */
     @EventHandler(priority = EventPriority.LOWEST)
     private void onClientTickAutoCharge(ClientTickEvent.Pre event) {
-        if (nullCheck() || !autoCharge.getValue() || !autoChargeWanted
+        if (nullCheck()) {
+            pendingAttackClick = 0;
+            stopAutoCharge();
+            return;
+        }
+
+        boolean attackDown = mc.options.keyAttack.isDown();
+
+        // 这一 tick 原版还处于使用状态，玩家的左键点击会被 drain 掉，记下来等状态结束后补发。
+        if (attackDown && autoChargeKeyHeld && mc.player.isUsingItem()) {
+            pendingAttackClick = ATTACK_CLICK_RETRY_TICKS;
+        }
+
+        if (attackDown) {
+            stopAutoCharge();
+        }
+
+        if (pendingAttackClick > 0) {
+            // 等待期间不要重新按住右键，否则原版不会松开、使用状态也不会结束，点击永远补不出去。
+            if (!mc.player.isUsingItem()) {
+                // 按当前绑定键补发玩家自己的那次点击，改键后依然有效。
+                KeyMapping.click(mc.options.keyAttack.key);
+                pendingAttackClick = 0;
+            } else {
+                pendingAttackClick--;
+            }
+            return;
+        }
+
+        if (attackDown) return;
+
+        if (!autoCharge.getValue() || !autoChargeWanted
                 || spearHitPending || spearMaceDelay > 0 || !isHoldingSpear()) {
             stopAutoCharge();
             return;
@@ -500,6 +548,7 @@ public class SpearAura extends Module {
         autoChargeWanted = false;
         // 模块关闭时必须把替玩家按住的右键松开，否则会一直保持蓄力。
         stopAutoCharge();
+        pendingAttackClick = 0;
         localPlayerId = -1;
     }
 }
