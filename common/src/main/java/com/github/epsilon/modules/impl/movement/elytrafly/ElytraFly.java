@@ -26,6 +26,7 @@ public class ElytraFly extends Module {
         super("Elytra Fly", Category.MOVEMENT);
         modes.put(ElytraFlightModes.Control, new ControlElytraFlightMode(this));
         modes.put(ElytraFlightModes.Pitch40, new Pitch40ElytraFlightMode(this));
+        modes.put(ElytraFlightModes.NCP, new NCPElytraFlightMode(this));
     }
 
     public enum SwapMode {
@@ -69,6 +70,18 @@ public class ElytraFly extends Module {
     public final BoolSetting pitch40AutoFirework = boolSetting("Pitch40 Auto Firework", true, () -> mode.is(ElytraFlightModes.Pitch40) && pitch40AutoTakeoff.getValue());
     public final IntSetting pitch40FireworkCooldown = intSetting("Pitch40 Firework Cooldown", 10, 0, 100, 1, () -> mode.is(ElytraFlightModes.Pitch40) && pitch40AutoTakeoff.getValue() && pitch40AutoFirework.getValue());
 
+    public final BoolSetting ncpInstantFly = boolSetting("NCP Instant Fly", true, () -> mode.is(ElytraFlightModes.NCP));
+    public final DoubleSetting ncpUpPitch = doubleSetting("NCP Up Pitch", 0.0, 0.0, 90.0, 1.0, () -> mode.is(ElytraFlightModes.NCP));
+    public final DoubleSetting ncpUpFactor = doubleSetting("NCP Up Factor", 1.0, 0.0, 10.0, 0.05, () -> mode.is(ElytraFlightModes.NCP));
+    public final DoubleSetting ncpDownFactor = doubleSetting("NCP Down Factor", 1.0, 0.0, 10.0, 0.05, () -> mode.is(ElytraFlightModes.NCP));
+    public final DoubleSetting ncpSpeed = doubleSetting("NCP Speed", 1.0, 0.1, 10.0, 0.1, () -> mode.is(ElytraFlightModes.NCP));
+    public final DoubleSetting ncpDownSpeed = doubleSetting("NCP Down Speed", 1.0, 0.1, 10.0, 0.1, () -> mode.is(ElytraFlightModes.NCP));
+    public final BoolSetting ncpTimer = boolSetting("NCP Timer", true, () -> mode.is(ElytraFlightModes.NCP));
+    public final BoolSetting ncpSpeedLimit = boolSetting("NCP Speed Limit", true, () -> mode.is(ElytraFlightModes.NCP));
+    public final DoubleSetting ncpMaxSpeed = doubleSetting("NCP Max Speed", 2.5, 0.1, 10.0, 0.1, () -> mode.is(ElytraFlightModes.NCP) && ncpSpeedLimit.getValue());
+    public final BoolSetting ncpNoDrag = boolSetting("NCP No Drag", false, () -> mode.is(ElytraFlightModes.NCP));
+    public final DoubleSetting ncpTimeout = doubleSetting("NCP Timeout", 0.5, 0.1, 1.0, 0.05, () -> mode.is(ElytraFlightModes.NCP));
+
     private ElytraFlightModes activeModeType;
     private Float pitch40YawOverride;
     /** 启动时停疾跑后，压制 AutoSprint 强制疾跑的剩余 tick 数。 */
@@ -111,8 +124,13 @@ public class ElytraFly extends Module {
         return mode.getValue().toString();
     }
 
+    /**
+     * 当前是否处于穿甲飞行状态：滑翔靠「换上鞘翅触发一次再换回胸甲」维持，鞘翅并不在身上。
+     * 渲染层据此隐藏滑翔姿态，AutoArmor 据此不再把鞘翅设为最高优先级。
+     */
     public boolean isArmorMode() {
-        return isEnabled() && mode.is(ElytraFlightModes.Control) && armored.getValue();
+        return isEnabled() && armored.getValue()
+                && (mode.is(ElytraFlightModes.Control) || mode.is(ElytraFlightModes.NCP));
     }
 
     public Pitch40ControlState capturePitch40ControlState() {

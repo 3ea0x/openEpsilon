@@ -83,6 +83,11 @@ GuiRenderer.render HEAD
 它订阅 `Render3DEvent` 并在 priority `-999` 统一 flush 并清空，生产者的 priority 必须大于 `-999`。
 3D shader、buffer 和 immediate renderer 仍在 `graphics/` 中维护，不经过 2D runtime。
 
+`utils/render/esp` 下的 `CaptureMarkESP`、`CircleESP`、`FireflyESP` 是无状态渲染器，多个模块可以直接复用
+（`KillAura`、`SpearAura` 共用同一套设置名与默认值）。`DeobfESP` 例外：它持有全局状态（命中标记与上升特效），
+`KillAura` 在构造函数里无条件订阅 `Render3DEvent` 驱动它渲染，其他模块不要再调 `DeobfESP.render`，否则每帧
+会渲染两遍。
+
 ## 后处理与 shader
 
 - `BlurShader.INSTANCE.render(...)` 做 2D 区域模糊（固定 `BlurShader.GlassMaterial.PLAIN`，HUD / 世界侧走这一档）；

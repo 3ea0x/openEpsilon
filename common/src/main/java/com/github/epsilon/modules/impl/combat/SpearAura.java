@@ -6,6 +6,7 @@ import com.github.epsilon.events.impl.ClientTickEvent;
 import com.github.epsilon.events.impl.KeyboardInputEvent;
 import com.github.epsilon.events.impl.PacketEvent;
 import com.github.epsilon.events.impl.PlayerTickEvent;
+import com.github.epsilon.events.impl.Render3DEvent;
 import com.github.epsilon.interfaces.ClientboundEntityEventPacketAccessor;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.managers.target.TargetManager;
@@ -14,16 +15,21 @@ import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
 import com.github.epsilon.modules.impl.ClientSetting;
 import com.github.epsilon.settings.impl.BoolSetting;
+import com.github.epsilon.settings.impl.ColorSetting;
 import com.github.epsilon.settings.impl.DoubleSetting;
 import com.github.epsilon.settings.impl.EnumSetting;
 import com.github.epsilon.settings.impl.IntSetting;
 import com.github.epsilon.utils.player.FindItemResult;
 import com.github.epsilon.utils.player.InvUtils;
 import com.github.epsilon.utils.player.PlayerUtils;
+import com.github.epsilon.utils.render.esp.CaptureMarkESP;
+import com.github.epsilon.utils.render.esp.CircleESP;
+import com.github.epsilon.utils.render.esp.FireflyESP;
 import com.github.epsilon.utils.rotation.Priority;
 import com.github.epsilon.utils.rotation.RaytraceUtils;
 import com.github.epsilon.utils.rotation.Rot2f;
 import com.github.epsilon.utils.rotation.RotationUtils;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.InteractionHand;
@@ -35,6 +41,7 @@ import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.awt.*;
 import java.util.List;
 
 /**
@@ -74,6 +81,18 @@ public class SpearAura extends Module {
         InvSwitch
     }
 
+    /**
+     * 目标 ESP 样式；与 KillAura 共用 {@code utils.render.esp} 下的渲染器。
+     * <p>
+     * 不含 KillAura 的 Deobf 模式：{@code DeobfESP} 是全局状态，KillAura 在构造函数里无条件订阅
+     * {@code Render3DEvent} 驱动它渲染，这里再驱动一次会每帧画两遍。
+     */
+    private enum ESPMode {
+        CaptureMark,
+        Circle,
+        Firefly
+    }
+
     private final DoubleSetting range = doubleSetting("Range", 4.0, 0.0, 6.0, 0.1);
     private final IntSetting fov = intSetting("FOV", 360, 10, 360, 1);
     private final BoolSetting autoCharge = boolSetting("Auto Charge", true);
@@ -91,6 +110,31 @@ public class SpearAura extends Module {
 
     private final BoolSetting mace = boolSetting("Mace", true);
     private final EnumSetting<MaceSwapMode> maceSwapMode = enumSetting("Mace Swap Mode", MaceSwapMode.Silent, mace::getValue);
+
+    // 目标 ESP：设置名、默认值与 KillAura 保持一致，方便两边的观感统一。
+    private final BoolSetting esp = boolSetting("ESP", true);
+    private final EnumSetting<ESPMode> espMode = enumSetting("ESP Mode", ESPMode.Circle, esp::getValue);
+    private final ColorSetting espColor1 = colorSetting("ESP Main", new Color(255, 183, 197), () -> esp.getValue() && espMode.is(ESPMode.CaptureMark));
+    private final ColorSetting espColor2 = colorSetting("ESP Second", new Color(255, 133, 161), () -> esp.getValue() && espMode.is(ESPMode.CaptureMark));
+    private final DoubleSetting espSize = doubleSetting("ESP Size", 1.2, 0.5, 3.0, 0.1, () -> esp.getValue() && espMode.is(ESPMode.CaptureMark));
+    private final DoubleSetting espRotSpeed = doubleSetting("Rot Speed", 2.0, 0.5, 10.0, 0.1, () -> esp.getValue() && espMode.is(ESPMode.CaptureMark));
+    private final DoubleSetting waveSpeed = doubleSetting("Wave Speed", 3.0, 0.5, 10.0, 0.1, () -> esp.getValue() && espMode.is(ESPMode.CaptureMark));
+    private final ColorSetting sideColor = colorSetting("Side Color", Color.WHITE, false, () -> esp.getValue() && espMode.is(ESPMode.Circle));
+    private final ColorSetting lineColor = colorSetting("Line Color", new Color(255, 255, 255, 233), () -> esp.getValue() && espMode.is(ESPMode.Circle));
+    private final DoubleSetting circleRadius = doubleSetting("Circle Radius", 0.75, 0.1, 2.0, 0.05, () -> esp.getValue() && espMode.is(ESPMode.Circle));
+    private final DoubleSetting circleAlphaFactor = doubleSetting("Circle Alpha Factor", 1.0, 0.0, 2.0, 0.05, () -> esp.getValue() && espMode.is(ESPMode.Circle));
+    private final EnumSetting<FireflyESP.ColorMode> fireflyColorMode = enumSetting("Firefly Color Mode", FireflyESP.ColorMode.Blend, () -> esp.getValue() && espMode.is(ESPMode.Firefly));
+    private final ColorSetting fireflyColor = colorSetting("Firefly Color", new Color(149, 149, 149, 255), () -> esp.getValue() && espMode.is(ESPMode.Firefly));
+    private final ColorSetting fireflyColor2 = colorSetting("Firefly Color 2", new Color(255, 133, 161, 255), () -> esp.getValue() && espMode.is(ESPMode.Firefly) && fireflyColorMode.is(FireflyESP.ColorMode.Blend));
+    private final DoubleSetting fireflyColorMix = doubleSetting("Firefly Color Mix", 0.65, 0.0, 1.0, 0.05, () -> esp.getValue() && espMode.is(ESPMode.Firefly) && fireflyColorMode.is(FireflyESP.ColorMode.Blend));
+    private final DoubleSetting fireflyColorSpeed = doubleSetting("Firefly Color Speed", 1.2, 0.1, 6.0, 0.1, () -> esp.getValue() && espMode.is(ESPMode.Firefly) && fireflyColorMode.is(FireflyESP.ColorMode.Blend));
+    private final DoubleSetting fireflyRainbowSpeed = doubleSetting("Firefly Rainbow Speed", 1.0, 0.1, 6.0, 0.1, () -> esp.getValue() && espMode.is(ESPMode.Firefly) && fireflyColorMode.is(FireflyESP.ColorMode.Rainbow));
+    private final DoubleSetting fireflyRainbowSaturation = doubleSetting("Firefly Rainbow Saturation", 0.85, 0.1, 1.0, 0.05, () -> esp.getValue() && espMode.is(ESPMode.Firefly) && fireflyColorMode.is(FireflyESP.ColorMode.Rainbow));
+    private final DoubleSetting fireflyRainbowBrightness = doubleSetting("Firefly Rainbow Brightness", 1.0, 0.1, 1.0, 0.05, () -> esp.getValue() && espMode.is(ESPMode.Firefly) && fireflyColorMode.is(FireflyESP.ColorMode.Rainbow));
+    private final IntSetting fireflyLength = intSetting("Firefly Length", 14, 8, 128, 1, () -> esp.getValue() && espMode.is(ESPMode.Firefly));
+    private final IntSetting fireflyFactor = intSetting("Firefly Factor", 8, 1, 10, 1, () -> esp.getValue() && espMode.is(ESPMode.Firefly));
+    private final DoubleSetting fireflyShaking = doubleSetting("Firefly Shaking", 1.8, 0.25, 10.0, 0.25, () -> esp.getValue() && espMode.is(ESPMode.Firefly));
+    private final DoubleSetting fireflyAmplitude = doubleSetting("Firefly Amplitude", 3.0, 0.0, 10.0, 0.25, () -> esp.getValue() && espMode.is(ESPMode.Firefly));
 
     public LivingEntity target;
     private List<LivingEntity> targets;
@@ -236,6 +280,52 @@ public class SpearAura extends Module {
         event.setForward(forward);
         event.setStrafe(strafe);
         event.setSprint(true);
+    }
+
+    /**
+     * 在当前目标上渲染 ESP；样式与 KillAura 共用 {@code utils.render.esp} 里的实现，只有选中样式的设置生效。
+     */
+    @EventHandler
+    private void onRender3D(Render3DEvent event) {
+        if (nullCheck() || !esp.getValue() || target == null || !target.isAlive()) return;
+
+        PoseStack stack = event.getPoseStack();
+
+        switch (espMode.getValue()) {
+            case CaptureMark -> CaptureMarkESP.render(
+                    stack,
+                    target,
+                    espSize.getValue(),
+                    espRotSpeed.getValue(),
+                    waveSpeed.getValue(),
+                    espColor1.getValue(),
+                    espColor2.getValue()
+            );
+            case Circle -> CircleESP.render(
+                    stack,
+                    target,
+                    circleRadius.getValue().floatValue(),
+                    sideColor.getValue(),
+                    lineColor.getValue(),
+                    circleAlphaFactor.getValue().floatValue()
+            );
+            case Firefly -> FireflyESP.render(
+                    stack,
+                    target,
+                    fireflyLength.getValue(),
+                    fireflyFactor.getValue(),
+                    fireflyShaking.getValue(),
+                    fireflyAmplitude.getValue(),
+                    fireflyColor.getValue(),
+                    fireflyColorMode.getValue(),
+                    fireflyColor2.getValue(),
+                    fireflyColorMix.getValue(),
+                    fireflyColorSpeed.getValue(),
+                    fireflyRainbowSpeed.getValue(),
+                    fireflyRainbowSaturation.getValue(),
+                    fireflyRainbowBrightness.getValue()
+            );
+        }
     }
 
     @EventHandler

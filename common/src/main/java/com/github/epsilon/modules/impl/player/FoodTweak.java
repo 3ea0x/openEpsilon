@@ -17,12 +17,12 @@ import net.minecraft.world.item.Items;
 /**
  * 主手持有工具/金苹果时，把背包里的食物换到副手或快捷栏，便于边打边吃。
  */
-public class SmartTweak extends Module {
+public class FoodTweak extends Module {
 
-    public static final SmartTweak INSTANCE = new SmartTweak();
+    public static final FoodTweak INSTANCE = new FoodTweak();
 
-    private SmartTweak() {
-        super("Smart Tweak", Category.PLAYER);
+    private FoodTweak() {
+        super("Food Tweak", Category.PLAYER);
     }
 
     private final BoolSetting pickaxeSwitch = boolSetting("SwitchEat", true);

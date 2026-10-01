@@ -76,7 +76,7 @@ public class ModuleManager {
         // Player
         addModule(AutoArmor.INSTANCE);
         addModule(AutoFirework.INSTANCE);
-        addModule(SmartTweak.INSTANCE);
+        addModule(FoodTweak.INSTANCE);
         addModule(AutoKouZi.INSTANCE);
         addModule(AutoBan.INSTANCE);
         addModule(AutoMLG.INSTANCE);

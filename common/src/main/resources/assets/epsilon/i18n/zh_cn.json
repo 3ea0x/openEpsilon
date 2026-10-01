@@ -232,7 +232,8 @@
         "mode": {
           "_value": "模式",
           "control": "控制",
-          "pitch40": "Pitch 40"
+          "pitch40": "Pitch 40",
+          "ncp": "NCP"
         },
         "swap mode": {
           "_value": "切换模式",
@@ -240,6 +241,7 @@
           "invswitch": "背包切换"
         },
         "armored": "穿甲",
+        "no eat": "禁止进食",
         "unbreaking": "无限耐久",
         "unbreaking delay": "无限耐久延迟",
         "no sprint": "禁止疾跑",
@@ -252,7 +254,18 @@
         "pitch40 auto takeoff": "Pitch40 自动起飞",
         "pitch40 takeoff target height": "Pitch40 起飞目标高度",
         "pitch40 auto firework": "Pitch40 起飞烟花",
-        "pitch40 firework cooldown": "Pitch40 烟花冷却"
+        "pitch40 firework cooldown": "Pitch40 烟花冷却",
+        "ncp instant fly": "NCP 瞬间起飞",
+        "ncp up pitch": "NCP 上升俯仰",
+        "ncp up factor": "NCP 上升系数",
+        "ncp down factor": "NCP 下降系数",
+        "ncp speed": "NCP 速度",
+        "ncp down speed": "NCP 下降速度",
+        "ncp timer": "NCP 变速",
+        "ncp speed limit": "NCP 限制速度",
+        "ncp max speed": "NCP 最大速度",
+        "ncp no drag": "NCP 无阻力",
+        "ncp timeout": "NCP 触发间隔"
       },
       "elytra grim acc": {
         "_value": "鞘翅 Grim 加速",
@@ -931,12 +944,7 @@
         "in wall freeze": "贴墙冻结",
         "custom in wall height": "自定义贴墙高度",
         "custom in wall packet height": "自定义贴墙发包高度",
-        "critical cooldown": "暴击冷却",
-        "confirm mode": {
-          "_value": "拉回确认方式",
-          "movepacket": "自己发移动包",
-          "teleportconfirm": "客户端确认包"
-        }
+        "critical cooldown": "暴击冷却"
       },
       "crystal aura": {
         "_value": "水晶光环",
@@ -1334,7 +1342,40 @@
           "normal": "普通",
           "silent": "静默",
           "invswitch": "背包切换"
-        }
+        },
+        "esp": "ESP",
+        "esp mode": {
+          "_value": "ESP模式",
+          "capturemark": "捕捉标记",
+          "circle": "圆形",
+          "firefly": "萤火虫"
+        },
+        "esp main": "ESP主色",
+        "esp second": "ESP副色",
+        "esp size": "ESP大小",
+        "rot speed": "旋转速度",
+        "wave speed": "波动速度",
+        "side color": "侧面颜色",
+        "line color": "线条颜色",
+        "circle radius": "圆形半径",
+        "circle alpha factor": "圆形透明度系数",
+        "firefly color mode": {
+          "_value": "萤火虫颜色模式",
+          "solid": "纯色",
+          "blend": "混合",
+          "rainbow": "彩虹"
+        },
+        "firefly color": "萤火虫颜色",
+        "firefly color 2": "萤火虫颜色2",
+        "firefly color mix": "萤火虫颜色混合",
+        "firefly color speed": "萤火虫颜色速度",
+        "firefly rainbow speed": "萤火虫彩虹速度",
+        "firefly rainbow saturation": "萤火虫彩虹饱和度",
+        "firefly rainbow brightness": "萤火虫彩虹亮度",
+        "firefly length": "萤火虫长度",
+        "firefly factor": "萤火虫因子",
+        "firefly shaking": "萤火虫抖动",
+        "firefly amplitude": "萤火虫振幅"
       },
       "spear kill": {
         "_value": "长矛击杀",
@@ -1537,6 +1578,23 @@
         "moving length": "移动时长",
         "fade length": "淡出时长"
       },
+      "anti crawl": {
+        "_value": "防爬行",
+        "while": {
+          "_value": "触发条件",
+          "crawling": "爬行时",
+          "mining": "挖掘时",
+          "always": "始终"
+        },
+        "web": "蜘蛛网"
+      },
+      "auto city": {
+        "_value": "自动拆城",
+        "burrow": "自埋方块",
+        "surround": "包围方块",
+        "feetdown": "脚下方块",
+        "targetrange": "目标范围"
+      },
       "auto armor": {
         "_value": "自动穿甲",
         "head": {
@@ -1580,6 +1638,11 @@
         "delay": "延迟",
         "switch back": "切换回来",
         "switch delay": "切换延迟"
+      },
+      "food tweak": {
+        "_value": "食物调整",
+        "switcheat": "切换进食",
+        "offhand": "副手"
       },
       "auto kouzi": {
         "_value": "自动扣字",

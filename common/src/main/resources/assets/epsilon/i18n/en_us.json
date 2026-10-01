@@ -232,7 +232,8 @@
         "mode": {
           "_value": "Mode",
           "control": "Control",
-          "pitch40": "Pitch 40"
+          "pitch40": "Pitch 40",
+          "ncp": "NCP"
         },
         "swap mode": {
           "_value": "Swap Mode",
@@ -240,6 +241,7 @@
           "invswitch": "Inv Switch"
         },
         "armored": "Armored",
+        "no eat": "No Eat",
         "unbreaking": "Unbreaking",
         "unbreaking delay": "Unbreaking Delay",
         "no sprint": "No Sprint",
@@ -252,7 +254,18 @@
         "pitch40 auto takeoff": "Pitch40 Auto Takeoff",
         "pitch40 takeoff target height": "Pitch40 Takeoff Target Height",
         "pitch40 auto firework": "Pitch40 Takeoff Firework",
-        "pitch40 firework cooldown": "Pitch40 Firework Cooldown"
+        "pitch40 firework cooldown": "Pitch40 Firework Cooldown",
+        "ncp instant fly": "NCP Instant Fly",
+        "ncp up pitch": "NCP Up Pitch",
+        "ncp up factor": "NCP Up Factor",
+        "ncp down factor": "NCP Down Factor",
+        "ncp speed": "NCP Speed",
+        "ncp down speed": "NCP Down Speed",
+        "ncp timer": "NCP Timer",
+        "ncp speed limit": "NCP Speed Limit",
+        "ncp max speed": "NCP Max Speed",
+        "ncp no drag": "NCP No Drag",
+        "ncp timeout": "NCP Timeout"
       },
       "elytra grim acc": {
         "_value": "Elytra Grim Acc",
@@ -931,12 +944,7 @@
         "in wall freeze": "In Wall Freeze",
         "custom in wall height": "Custom In Wall Height",
         "custom in wall packet height": "Custom In Wall Packet Height",
-        "critical cooldown": "Critical Cooldown",
-        "confirm mode": {
-          "_value": "Confirm Mode",
-          "movepacket": "Move Packet",
-          "teleportconfirm": "Teleport Confirm"
-        }
+        "critical cooldown": "Critical Cooldown"
       },
       "crystal aura": {
         "_value": "Crystal Aura",
@@ -1334,7 +1342,40 @@
           "normal": "Normal",
           "silent": "Silent",
           "invswitch": "Inv Switch"
-        }
+        },
+        "esp": "ESP",
+        "esp mode": {
+          "_value": "ESP Mode",
+          "capturemark": "Capture Mark",
+          "circle": "Circle",
+          "firefly": "Firefly"
+        },
+        "esp main": "ESP Main Color",
+        "esp second": "ESP Second Color",
+        "esp size": "ESP Size",
+        "rot speed": "Rot Speed",
+        "wave speed": "Wave Speed",
+        "side color": "Side Color",
+        "line color": "Line Color",
+        "circle radius": "Circle Radius",
+        "circle alpha factor": "Circle Alpha Factor",
+        "firefly color mode": {
+          "_value": "Firefly Color Mode",
+          "solid": "Solid",
+          "blend": "Blend",
+          "rainbow": "Rainbow"
+        },
+        "firefly color": "Firefly Color",
+        "firefly color 2": "Firefly Color 2",
+        "firefly color mix": "Firefly Color Mix",
+        "firefly color speed": "Firefly Color Speed",
+        "firefly rainbow speed": "Firefly Rainbow Speed",
+        "firefly rainbow saturation": "Firefly Rainbow Saturation",
+        "firefly rainbow brightness": "Firefly Rainbow Brightness",
+        "firefly length": "Firefly Length",
+        "firefly factor": "Firefly Factor",
+        "firefly shaking": "Firefly Shaking",
+        "firefly amplitude": "Firefly Amplitude"
       },
       "spear kill": {
         "_value": "Spear Kill",
@@ -1537,6 +1578,23 @@
         "moving length": "Moving Length",
         "fade length": "Fade Length"
       },
+      "anti crawl": {
+        "_value": "Anti Crawl",
+        "while": {
+          "_value": "While",
+          "crawling": "Crawling",
+          "mining": "Mining",
+          "always": "Always"
+        },
+        "web": "Web"
+      },
+      "auto city": {
+        "_value": "Auto City",
+        "burrow": "Burrow",
+        "surround": "Surround",
+        "feetdown": "FeetDown",
+        "targetrange": "TargetRange"
+      },
       "auto armor": {
         "_value": "Auto Armor",
         "head": {
@@ -1580,6 +1638,11 @@
         "delay": "Delay",
         "switch back": "Switch Back",
         "switch delay": "Switch Delay"
+      },
+      "food tweak": {
+        "_value": "Food Tweak",
+        "switcheat": "SwitchEat",
+        "offhand": "Offhand"
       },
       "auto kouzi": {
         "_value": "Auto Kouzi",

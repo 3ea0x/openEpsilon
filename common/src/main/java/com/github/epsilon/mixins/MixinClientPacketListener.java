@@ -4,6 +4,7 @@ import com.github.epsilon.events.bus.EventBus;
 import com.github.epsilon.events.impl.GameJoinedEvent;
 import com.github.epsilon.events.impl.GameLeftEvent;
 import com.github.epsilon.events.impl.RespawnEvent;
+import com.github.epsilon.modules.impl.combat.Criticals;
 import com.github.epsilon.modules.impl.player.NoRotate;
 import com.github.epsilon.modules.impl.render.NoRender;
 import com.github.epsilon.modules.impl.render.SneakTweak;
@@ -92,6 +93,14 @@ public abstract class MixinClientPacketListener extends ClientCommonPacketListen
         pitchRef.set(minecraft.player.getXRot());
     }
 
+    /**
+     * Criticals 的 Grim 地面模拟需要在客户端处理拉回包之前（也就是客户端回应 Grim 第二个 transaction 之前）
+     * 发出自己的拉回确认包，否则 Grim 会判定玩家忽略了这次拉回并重新下发。
+     */
+    @Inject(method = "handleMovePlayer", at = @At("HEAD"))
+    private void onHandleMovePlayerCriticals(ClientboundPlayerPositionPacket packet, CallbackInfo ci) {
+        Criticals.INSTANCE.onSetBackPacket(packet);
+    }
     @Inject(method = "handleMovePlayer", at = @At("RETURN"))
     private void onHandleMovePlayerReturn(ClientboundPlayerPositionPacket packet, CallbackInfo ci, @Share("noRotateYaw") LocalFloatRef yawRef, @Share("noRotatePitch") LocalFloatRef pitchRef) {
         if (!NoRotate.INSTANCE.isEnabled() || minecraft.player == null) return;
