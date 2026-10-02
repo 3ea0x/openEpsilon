@@ -35,11 +35,26 @@ public class FlightIntentPlanner {
         }
 
         Vec3 desired = rawIntent.desiredVelocity();
+        if (config.navigationMode() == NavigationMode.Slimefun) {
+            // Slimefun 模式：反应式机动整体替换 A* 与扇区避障，并且永远给出一个方向。
+            this.lastAvoidanceDirection = null;
+            Vec3 direction = SlimefunFlightNavigator.navigate(player, desired, targetPoint, config.stopDistance());
+            ElytraDebug.log(ElytraDebug.SLOT_PLANNER, "planner", "slimefun " + vec(direction));
+            return new FlightIntent(
+                    direction,
+                    direction.normalize(),
+                    rawIntent.directVelocity(),
+                    rawIntent.useFirework()
+            );
+        }
+
         double probe = Math.clamp(desired.length() * 4.0, 4.0, LOCAL_PROBE_DISTANCE);
         Vec3 directEnd = player.position().add(desired.normalize().scale(probe));
         if (LocalFlightAvoidance.isSegmentClear(player, player.position(), directEnd)) {
             // 短距离直线已验证安全，直接保留行为层的期望速度。
-            this.lastAvoidanceDirection = null;
+            // 注意不要在这里清空 lastAvoidanceDirection：否则下次进入避障时又失去左右偏好，
+            // 会在障碍边界上逐 tick 左右摇摆（转头抽风）。
+            ElytraDebug.log(ElytraDebug.SLOT_PLANNER, "planner", "direct");
             return new FlightIntent(desired, desired.normalize(), rawIntent.directVelocity(), rawIntent.useFirework());
         }
 
@@ -55,10 +70,10 @@ public class FlightIntentPlanner {
         // 从原始 A* 路径选择当前仍能直线到达的最近航点。
         Vec3 waypoint = selectPathWaypoint(player, path);
         if (waypoint != null) {
-            this.lastAvoidanceDirection = null;
             Vec3 waypointVelocity = waypoint.subtract(player.position());
             if (waypointVelocity.lengthSqr() >= 1.0E-8) {
                 waypointVelocity = waypointVelocity.normalize().scale(desired.length());
+                ElytraDebug.log(ElytraDebug.SLOT_PLANNER, "planner", "waypoint " + vec(waypointVelocity));
                 return new FlightIntent(waypointVelocity, waypointVelocity.normalize(), rawIntent.directVelocity(), false);
             }
         }
@@ -82,10 +97,18 @@ public class FlightIntentPlanner {
                 this.lastAvoidanceDirection
         );
         if (avoidance == null) {
+            ElytraDebug.log(ElytraDebug.SLOT_AVOIDANCE, "avoidance", "none");
             return FlightIntent.idle(player.getLookAngle());
         }
         this.lastAvoidanceDirection = avoidance.normalize();
+        ElytraDebug.log(ElytraDebug.SLOT_AVOIDANCE, "avoidance", vec(avoidance));
         return new FlightIntent(avoidance, this.lastAvoidanceDirection, rawIntent.directVelocity(), false);
+    }
+
+    /** 调试用的向量格式化。 */
+    private static String vec(Vec3 value) {
+        return value == null ? "null"
+                : "(" + ElytraDebug.fmt(value.x) + "," + ElytraDebug.fmt(value.y) + "," + ElytraDebug.fmt(value.z) + ")";
     }
 
     /**

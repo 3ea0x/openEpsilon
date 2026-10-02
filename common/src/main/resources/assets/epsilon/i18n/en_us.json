@@ -1918,6 +1918,16 @@
         "follow": "Follow",
         "stop distance": "Stop Distance",
         "follow ground height": "Follow Ground Height",
+        "path mode": {
+          "_value": "Path Mode",
+          "astar": "A-Star",
+          "slimefun": "Slimefun"
+        },
+        "chase mode": {
+          "_value": "Chase Mode",
+          "epsilon": "Epsilon",
+          "slimefun": "Slimefun"
+        },
         "pathfinding": "Pathfinding",
         "search radius": "Search Radius",
         "max nodes": "Max Nodes",
@@ -1949,9 +1959,11 @@
         "control mode": {
           "_value": "Control Mode",
           "input": "Input",
-          "directvelocity": "Direct Velocity"
+          "directvelocity": "Direct Velocity",
+          "slimefunfirework": "Slimefun Firework"
         },
         "max flight speed": "Max Flight Speed",
+        "max turn speed": "Max Turn Speed",
         "allow firework": "Allow Firework",
         "render": "Render",
         "render vector": "Render Vector",

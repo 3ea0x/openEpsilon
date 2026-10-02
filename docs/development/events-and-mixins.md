@@ -52,7 +52,8 @@ EventBus 在某个监听器取消事件后立即停止调用后续监听器。
 后者用于 HUD 与主界面。
 
 `FallFlyingMovementEvent` 在 `LivingEntity.updateFallFlyingMovement` 返回后发布。ElytraCombat 的
-Direct Velocity 模式通过该事件覆盖最终速度；默认 Input 模式不会修改原版结果。
+Direct Velocity 模式通过该事件覆盖最终速度（带线段安全回退）；Input 与 Slimefun Firework 模式不修改
+原版结果，两者都靠静默旋转 + ElytraFly 自己的烟花推进驱动，区别只在行为层的追击几何。
 
 26.3 的输入系统由 GLFW 换成 SDL，事件记录仍是 `net.minecraft.client.input.KeyEvent` /
 `MouseButtonEvent`，但语义变了：`KeyEvent.key()` 是 SDL 扫描码（对应 `InputConstants.KEY_*`，

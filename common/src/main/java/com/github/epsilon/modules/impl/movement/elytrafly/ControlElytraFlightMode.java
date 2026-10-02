@@ -8,6 +8,7 @@ import com.github.epsilon.events.impl.TravelEvent;
 import com.github.epsilon.managers.rotation.RotationManager;
 import com.github.epsilon.modules.impl.combat.elytra_combat.ElytraCombat;
 import com.github.epsilon.modules.impl.combat.elytra_combat.ElytraCombatInput;
+import com.github.epsilon.modules.impl.combat.elytra_combat.flight.ElytraDebug;
 import com.github.epsilon.utils.player.FindItemResult;
 import com.github.epsilon.utils.player.InvUtils;
 import com.github.epsilon.utils.rotation.Priority;
@@ -184,6 +185,10 @@ public class ControlElytraFlightMode extends ElytraFlightMode {
     }
 
     private void redirectRotation() {
+        if (ElytraDebug.enabled) {
+            ElytraDebug.log(ElytraDebug.SLOT_ROTATION, "rotation.request",
+                    "yaw=" + ElytraDebug.fmt(calcYaw()) + " pitch=" + ElytraDebug.fmt(calcPitch()));
+        }
         RotationManager.request(elytraFly.rotationType.getValue(), new Rot2f(calcYaw(), calcPitch()), 360, Priority.Highest);
     }
 
@@ -259,7 +264,12 @@ public class ControlElytraFlightMode extends ElytraFlightMode {
         if (!mc.player.isFallFlying()) return false;
 
         AABB box = mc.player.getBoundingBox();
-        double probeDistance = CEILING_PROBE_DISTANCE + Math.max(0.0, mc.player.getDeltaMovement().y);
+        // ElytraCombat 接管时用「意图抬升量」做探测距离：用当前 vy 会形成
+        // 「拉升→探测变长→强制低头→上升变慢→探测变短→再拉升」的每 tick 振荡。
+        double climb = ElytraCombat.INSTANCE.getControlInput() != null
+                ? ElytraCombat.INSTANCE.getCombatIntendedClimb()
+                : mc.player.getDeltaMovement().y;
+        double probeDistance = CEILING_PROBE_DISTANCE + Math.max(0.0, climb);
         AABB ceilingProbe = new AABB(
                 box.minX + CEILING_PROBE_EPSILON,
                 box.maxY - CEILING_PROBE_EPSILON,

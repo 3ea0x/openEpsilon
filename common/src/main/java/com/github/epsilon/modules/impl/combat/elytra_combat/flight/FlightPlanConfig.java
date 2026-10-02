@@ -7,6 +7,7 @@ public record FlightPlanConfig(
         double stopDistance,
         int searchRadius,
         int maxNodes,
-        boolean pathfinding
+        boolean pathfinding,
+        NavigationMode navigationMode
 ) {
 }

@@ -86,8 +86,14 @@ public class SpearBehavior implements ElytraCombatBehavior {
                 }
             }
             case NEAR_FOLLOW -> {
-                // 目标脱离范围则回到普通追击，避免持续贴脸。
-                if (distance > bot.spearEngageRange.getValue()) {
+                if (bot.chaseMode.is(ChaseMode.Slimefun) && slimefunShouldPullOver(bot, target, distance)) {
+                    // Slimefun：目标在绕圈/迎面/静止而长矛还没蓄力完成时直接脱战，避免被贴脸对矛。
+                    this.state = State.PULL_OVER;
+                    this.pullOverTicks = 0;
+                    Vec3 delta = targetPoint.subtract(bot.player().position());
+                    desired = new Vec3(-delta.x, Math.abs(delta.y), -delta.z);
+                } else if (distance > bot.spearEngageRange.getValue()) {
+                    // 目标脱离范围则回到普通追击，避免持续贴脸。
                     this.state = State.FOLLOW;
                     desired = followDirection(bot, targetPoint);
                 } else {
@@ -97,7 +103,8 @@ public class SpearBehavior implements ElytraCombatBehavior {
             case PULL_OVER -> {
                 // 命中后水平反向、垂直取正，快速脱离对方长矛反击范围。
                 this.pullOverTicks++;
-                if (this.pullOverTicks > bot.spearPullOverTicks.getValue()) {
+                if (this.pullOverTicks > bot.spearPullOverTicks.getValue()
+                        || (bot.chaseMode.is(ChaseMode.Slimefun) && slimefunPullOverFinished(bot, target, distance))) {
                     this.state = State.FOLLOW;
                     this.pullOverTicks = 0;
                     desired = followDirection(bot, targetPoint);
@@ -142,6 +149,18 @@ public class SpearBehavior implements ElytraCombatBehavior {
 
     private Vec3 nearFollowDirection(ElytraCombat bot, TargetSnapshot target, Vec3 targetPoint) {
         CombatWeaponController.ensureSpearUse();
+
+        if (bot.chaseMode.is(ChaseMode.Slimefun)) {
+            // Slimefun 的近身追击：朝向目标，若当前正在远离就把整个向量翻转（原实现没有冲锋与矛线闪避）。
+            Vec3 look = ensureMinimumLength(targetPoint.subtract(bot.player().getEyePosition()), 6.0);
+            Vec3 lookHorizontal = new Vec3(look.x, 0.0, look.z);
+            Vec3 movement = bot.player().getDeltaMovement();
+            Vec3 movementHorizontal = new Vec3(movement.x, 0.0, movement.z);
+            if (lookHorizontal.lengthSqr() > 1.0E-8 && lookHorizontal.dot(movementHorizontal) < 0.0) {
+                look = look.scale(-1.0);
+            }
+            return look;
+        }
 
         if (bot.spearAntiSpear.getValue() && target.usingSpear()) {
             Vec3 antiSpear = antiSpearDirection(bot, target);
@@ -216,5 +235,38 @@ public class SpearBehavior implements ElytraCombatBehavior {
             return Vec3.ZERO;
         }
         return vector.length() < minimum ? vector.normalize().scale(minimum) : vector;
+    }
+
+    // ===== Slimefun 侧移植：SlimefunHelper ElytraBot 的 SpearAura 追击几何 =====
+
+    /**
+     * Slimefun 的脱战入口：目标在绕圈（且已进入交战距离）、迎面或静止，而长矛还没蓄力完成时，
+     * 直接转 PULL_OVER 拉开距离（原实现里 {@code canAdjustMovement} 恒为 false，矛线闪避是死代码）。
+     */
+    private boolean slimefunShouldPullOver(ElytraCombat bot, TargetSnapshot target, double distance) {
+        TargetAction action = target.action();
+        boolean inCombatRange = distance <= bot.spearEngageRange.getValue();
+        boolean risky = (inCombatRange && action == TargetAction.CIRCLING)
+                || action == TargetAction.TOWARDS
+                || action == TargetAction.AFK;
+        return risky && !CombatWeaponController.canUseSpearAttack();
+    }
+
+    /**
+     * Slimefun 的脱战距离判定：按目标动作决定「拉到多远就可以回头」。
+     * 目标稳定时按剩余冷却逐格拉开，逃跑时只要求脱离最小距离，其余情况拉到交战距离。
+     */
+    private boolean slimefunPullOverFinished(ElytraCombat bot, TargetSnapshot target, double distance) {
+        TargetAction action = target.action();
+        double requiredDistance;
+        if (action == TargetAction.AFK || action == TargetAction.SLOW_SPEED
+                || (distance <= bot.spearEngageRange.getValue() && action != TargetAction.ESCAPING)) {
+            requiredDistance = Math.max(0, bot.spearPullOverTicks.getValue() - this.pullOverTicks);
+        } else if (action == TargetAction.ESCAPING) {
+            requiredDistance = bot.spearMinRange.getValue();
+        } else {
+            requiredDistance = bot.spearEngageRange.getValue();
+        }
+        return distance > requiredDistance;
     }
 }
