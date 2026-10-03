@@ -440,7 +440,7 @@ public class ElytraDirectionSolver {
         return (float) -Math.toDegrees(Math.atan2(direction.y, horizontal));
     }
 
-    private static double effectiveGravity(LocalPlayer player) {
+    public static double effectiveGravity(LocalPlayer player) {
         // 与原版 LivingEntity.getEffectiveGravity 一致：下落且缓降时重力和 0.01 取小。
         if (player.getDeltaMovement().y <= 0.0 && player.hasEffect(MobEffects.SLOW_FALLING)) {
             return Math.min(player.getGravity(), 0.01);

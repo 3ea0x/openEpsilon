@@ -16,7 +16,7 @@ public final class ElytraDebug {
     public static boolean enabled = false;
 
     /** 同一标签的最小重复间隔（毫秒），避免逐 tick 打印刷爆聊天栏。 */
-    private static final long THROTTLE_MS = 100L;
+    private static final long THROTTLE_MS = 200L;
 
     /** 标签槽位：每个决策点一个，用来判断"变化"而不是"每秒打印"。 */
     private static final int SLOTS = 32;

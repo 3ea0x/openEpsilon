@@ -11,6 +11,7 @@ import com.github.epsilon.modules.impl.combat.elytra_combat.flight.SlimefunGeome
 import com.github.epsilon.modules.impl.combat.elytra_combat.target.TargetSnapshot;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -52,9 +53,39 @@ public class MaceBehavior implements ElytraCombatBehavior {
     private BlockPos lastGroundCandidate;
     /** 俯冲攻击后的改出剩余 tick 数。 */
     private int recoveryTicks;
+    /** 本次俯冲进入攻击距离后还剩几个下压 tick；归零说明这一趟打空了。 */
+    private int strikeTicks;
 
     /** 探测条件必须连续成立这么多 tick 才允许切换状态，避免拉升与下压互相抢转向。 */
     private static final int PROBE_LATCH_TICKS = 3;
+
+    /**
+     * 俯冲进攻击距离后保持下压的 tick 数。
+     *
+     * <p>进入攻击距离就立刻改判拉升的话，只要 KillAura 这一次冷却没赶上，意图就会在攻击距离边界上
+     * 逐 tick 互切，表现为俯冲没打中就在目标周围绕圈。这里先留几个 tick 的下压窗口给它出手，
+     * 窗口用完还没出手才算这一趟打空，拉起来重新俯冲。</p>
+     */
+    private static final int STRIKE_TICKS = 4;
+
+    /**
+     * "这一趟俯冲打空了"的高度带（格）。
+     *
+     * <p>已经俯冲到目标所在的高度带，说明这次下压的高度用光了，而这几 tick 里 KillAura 一次都没
+     * 出手；此时若还在攻击距离外，继续压是压不进去的——滑翔的最小转弯半径 ≈ 速度 / 最大角速度
+     * （Max Turn Speed=15°/tick、实际速度 1.5 格/tick 时约 6 格）比交互距离还大，结果就是贴着目标
+     * 高度在攻击距离外画圈。所以到这条线还没出手就按打空处理，拉起来重新俯冲。</p>
+     */
+    private static final double MISS_ALTITUDE_BAND = 3.0;
+
+    /**
+     * 拉升到"目标上方配置高度"的到达容差（格）。
+     *
+     * <p>拉升的瞄准点就是这条高度线，滑翔物理靠近它时垂直分量会趋近 0（日志里 maneuver.pullup 的 y
+     * 只剩 0.4~2 格），严格比较就永远差零点几格到不了阈值，只在阈值下方水平绕圈，一直等到"拉升
+     * 超时"才改出——表现为拉升完在天上绕一两圈再俯冲。差得不多就按到达处理，直接进入俯冲。</p>
+     */
+    private static final double PULL_UP_ARRIVE_TOLERANCE = 2.0;
 
     @Override
     public void reset() {
@@ -64,6 +95,7 @@ public class MaceBehavior implements ElytraCombatBehavior {
         this.feetBlockedTicks = 0;
         this.lastGroundCandidate = null;
         this.recoveryTicks = 0;
+        this.strikeTicks = 0;
     }
 
     @Override
@@ -112,15 +144,20 @@ public class MaceBehavior implements ElytraCombatBehavior {
                     break;
                 }
 
-                // 高度达到配置值，或拉升超时且已高于目标时，开始接近。
+                // 高度达到配置值（留到达容差），或拉升超时且已高于目标时，开始接近。
                 // 高度阈值与拉升方向使用同一个高度（地面目标用 Mace Ground Height），否则两个设置
                 // 不一致时会在"拉升 / 跟随"之间反复切换，表现为低空来回。
                 double followHeight = target.supported()
                         ? bot.maceGroundHeight.getValue()
                         : bot.maceHeight.getValue();
-                boolean mayFollow = bot.player().getY() >= target.entity().getY() + followHeight
+                double aimY = target.entity().getY() + followHeight;
+                boolean arrived = bot.player().getY() > target.entity().getY()
+                        && aimY - bot.player().getY() <= PULL_UP_ARRIVE_TOLERANCE;
+                // 超时用纯 tick 数：原来把高度（格）当成 tick 加进去，Mace Ground Height=17 时实际超时
+                // 被放大到 37 tick，绕圈时间也跟着翻倍。
+                boolean mayFollow = arrived
                         || (bot.player().getY() > target.entity().getY()
-                        && tick - this.pullUpStartTick > bot.macePullUpTicks.getValue() + followHeight);
+                        && tick - this.pullUpStartTick > bot.macePullUpTicks.getValue());
                 if (mayFollow) {
                     this.state = State.FOLLOW;
                     desired = target.supported() && !inAttackRange(bot, target)
@@ -138,9 +175,7 @@ public class MaceBehavior implements ElytraCombatBehavior {
             case FOLLOW -> {
                 // 地面目标需要先找可攻击落点；空中目标直接追预测位置。
                 if (target.supported()) {
-                    desired = inAttackRange(bot, target)
-                            ? followOrHold(bot, targetPos, target)
-                            : groundApproach(bot, target);
+                    desired = strikeOrReapproach(bot, targetPos, target, tick);
                 } else if (bot.chaseMode.is(ChaseMode.Slimefun) && slimefunFeetBlocked(bot, true)) {
                     // Slimefun：脚下被挡说明高度不够，重新拉升（攻击交给 KillAura）。
                     // 同样加迟滞：脚下探测的抖动会让拉升与跟随互抢。
@@ -177,12 +212,40 @@ public class MaceBehavior implements ElytraCombatBehavior {
         return planner.plan(bot.player(), raw, target.predictedPosition(), planConfig);
     }
 
+    /**
+     * KillAura 出手后立刻改出。
+     *
+     * <p>攻击交给 KillAura 之后，"攻击后拉升"只能由本地攻击事件触发，命中反馈两条路在滑翔时都不可靠：</p>
+     * <ul>
+     *   <li>滑翔时原版 {@code MaceItem.canSmashAttack} 要求 {@code !isFallFlying()}，本地根本算不出
+     *       MACE_SMASH；服务端打出猛击时，{@code ClientboundDamageEventPacket} 也只在"未被无敌帧削伤"
+     *       的那一次广播（目标 {@code damageCooldownTime > 10} 的补刀不广播），日志里连续出现的
+     *       {@code fall=1.00}（{@code checkFallDistanceAccumulation} 把 fallDistance 压到 1.0）就是
+     *       猛击已经发生、但状态机一次都没收到 MACE 命中的证据。</li>
+     *   <li>{@code FOLLOW} 里靠 {@code fallDistance} 归零判断"刚打完"同样失效：滑翔中该值只会被压到
+     *       1.0，不会回到 0。</li>
+     * </ul>
+     */
+    @Override
+    public void onAttack(LivingEntity target) {
+        beginRecoveryPullUp("attack");
+    }
+
     @Override
     public void onHit(CombatHitTracker.HitType hitType) {
         if (hitType == CombatHitTracker.HitType.MACE) {
-            this.state = State.PULL_UP;
-            this.pullUpStartTick = -1;
+            beginRecoveryPullUp("mace hit");
         }
+    }
+
+    /**
+     * 进入带改出阶段的拉升：{@code pullUpStartTick} 置 -1，下一 tick 由 {@link #tick} 初始化，
+     * 先沿当前航向爬升 {@link #RECOVERY_TICKS} 个 tick 再回头瞄准目标上方高度。
+     */
+    private void beginRecoveryPullUp(String reason) {
+        this.state = State.PULL_UP;
+        this.pullUpStartTick = -1;
+        ElytraDebug.log(ElytraDebug.SLOT_MACE_STATE, "mace.trigger", reason + " -> PULL_UP");
     }
 
     @Override
@@ -237,6 +300,53 @@ public class MaceBehavior implements ElytraCombatBehavior {
      */
     private Vec3 followOrHold(ElytraCombat bot, Vec3 targetPos, TargetSnapshot target) {
         return pullUp(bot, targetPos, target);
+    }
+
+    /**
+     * 地面目标的俯冲接触段：压住目标等下压窗口，打空才拉起来重新俯冲。
+     *
+     * <p>原来"进入攻击距离"就直接改判成拉升（爬回 Mace Ground Height）：只要 KillAura 这一次
+     * 冷却没赶上，意图就会在攻击距离边界上逐 tick 互切，表现为俯冲下来没打中就在目标周围绕圈；
+     * 而每次只爬高一点点又立刻俯冲，水平方向越绕越偏，最后带着残余速度飞离目标。</p>
+     *
+     * <p>命中由 {@code onAttack} 直接进入 PULL_UP，这里只负责"没命中的那趟"：先保持
+     * {@link #STRIKE_TICKS} 个 tick 的下压给 KillAura 出手机会，窗口内没出手就按俯冲打空处理，
+     * 沿当前航向改出（{@code recover}）再回到目标上方重新俯冲。</p>
+     */
+    private Vec3 strikeOrReapproach(ElytraCombat bot, Vec3 targetPos, TargetSnapshot target, int tick) {
+        if (inAttackRange(bot, target)) {
+            if (this.strikeTicks <= 0) {
+                // 刚进入攻击距离：开一个下压窗口，让 KillAura 有机会出手。
+                this.strikeTicks = STRIKE_TICKS;
+                return groundApproach(bot, target);
+            }
+            if (--this.strikeTicks > 0) {
+                return groundApproach(bot, target);
+            }
+            // 窗口用完还没出手：这一趟俯冲打空，沿当前航向改出后重新拉升。
+            this.strikeTicks = 0;
+            beginRecoveryPullUp(missReason(bot, target));
+            return recover(bot, targetPos, target);
+        }
+
+        // 不在攻击距离：已经降到目标的高度带就是打空了。这里必须收手——继续 groundApproach 只会在
+        // 攻击距离外贴着目标高度绕圈（日志里整局 d 都在 4.6~7.0、|Δy| 都在 3 以内），既打不到也
+        // 落不下去，永远等不到下一次俯冲。
+        if (Math.abs(bot.player().getY() - target.entity().getY()) < MISS_ALTITUDE_BAND) {
+            this.strikeTicks = 0;
+            beginRecoveryPullUp(missReason(bot, target));
+            return recover(bot, targetPos, target);
+        }
+
+        // 还没降到目标高度带：继续俯冲接近。
+        this.strikeTicks = 0;
+        return groundApproach(bot, target);
+    }
+
+    /** 打空时的调试原因：带上距离与高度差，便于分辨是"够不着"还是"KillAura 没出手"。 */
+    private static String missReason(ElytraCombat bot, TargetSnapshot target) {
+        return "miss d=" + ElytraDebug.fmt(bot.player().distanceTo(target.entity()))
+                + " dy=" + ElytraDebug.fmt(bot.player().getY() - target.entity().getY());
     }
 
     /** KillAura 是否已能打到该目标。 */

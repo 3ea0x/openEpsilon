@@ -271,6 +271,16 @@ public class ElytraCombat extends Module {
         return isEnabled() && this.currentBehavior != null;
     }
 
+    /**
+     * 本 tick 是否真的由 ElytraCombat 在驾驶（已选中目标并产出控制输入）。
+     *
+     * <p>飞控用它决定要不要服从本模块的烟花意图：模块开着但待机（没目标、没接管）时不应干预
+     * ElytraFly 自己的烟花时机，否则一开模块就完全放不出烟花。</p>
+     */
+    public boolean isDrivingFlight() {
+        return isEnabled() && this.controlInput != null;
+    }
+
     /** 开启/关闭 ElytraCombat 的调试输出（按决策点打印到聊天栏）。 */
     public void toggleDebug() {
         ElytraDebug.enabled = !ElytraDebug.enabled;
@@ -364,22 +374,45 @@ public class ElytraCombat extends Module {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     private void onFallFlyingMovement(FallFlyingMovementEvent event) {
-        // 只有规划速度本身安全时才覆盖原版滑翔结果，否则保留 solveSafe 的旋转控制。
-        if (!isEnabled() || this.controlInput == null || !this.controlInput.hasDirectVelocity()) {
+        if (!isEnabled() || this.controlInput == null) {
             return;
         }
 
-        Vec3 directVelocity = this.controlInput.directVelocity();
-        if (this.mc.player == null || !LocalFlightAvoidance.isSegmentClear(
-                this.mc.player,
-                this.mc.player.position(),
-                this.mc.player.position().add(directVelocity)
-        )) {
-            // 直接速度不安全时保留原版滑翔结果，由 solveSafe 选择的旋转接管本 tick。
-            // Slimefun 烟花动力不写入速度，直接由滑翔物理 + 烟花推进驱动。
+        if (this.controlInput.hasDirectVelocity()) {
+            Vec3 directVelocity = this.controlInput.directVelocity();
+            if (this.mc.player == null || !LocalFlightAvoidance.isSegmentClear(
+                    this.mc.player,
+                    this.mc.player.position(),
+                    this.mc.player.position().add(directVelocity)
+            )) {
+                // 直接速度不安全时保留原版滑翔结果，由 solveSafe 选择的旋转接管本 tick。
+                return;
+            }
+            event.setMovement(directVelocity);
             return;
         }
-        event.setMovement(directVelocity);
+
+        // 静默旋转下，服务端按"我们发出去的旋转"模拟滑翔，而原版本地复算用的是真实（相机）旋转，
+        // 两边不一致：本地看起来姿态毫无作用（表现为绕圈）。这里用同一个滑翔方程、按请求的旋转
+        // 复算一遍——结果与服务端将模拟出的速度一致，因此既不产生无法复现的移动，也不触发 AC。
+        // 事件在 setDeltaMovement 之前发布，此时玩家速度仍是本 tick 的输入速度。
+        // 非静默模式（Snap 等）真实旋转已经等于请求旋转，复算结果与原版一致，可无条件执行。
+        if (this.mc.player == null || this.mc.level == null) {
+            return;
+        }
+        Vec3 input = this.mc.player.getDeltaMovement();
+        Vec3 corrected = ElytraMotionPredictor.nextFallFlyingMovement(
+                input,
+                this.controlInput.yaw(),
+                this.controlInput.pitch(),
+                ElytraDirectionSolver.effectiveGravity(this.mc.player)
+        );
+        ElytraDebug.log(ElytraDebug.SLOT_ROTATION, "rotation.physics",
+                "real=(" + ElytraDebug.fmt(this.mc.player.getYRot()) + "," + ElytraDebug.fmt(this.mc.player.getXRot()) + ")"
+                        + " req=(" + ElytraDebug.fmt(this.controlInput.yaw()) + "," + ElytraDebug.fmt(this.controlInput.pitch()) + ")"
+                        + " vanillaVy=" + ElytraDebug.fmt(event.getMovement().y)
+                        + " fixedVy=" + ElytraDebug.fmt(corrected.y));
+        event.setMovement(corrected);
     }
 
     @EventHandler
