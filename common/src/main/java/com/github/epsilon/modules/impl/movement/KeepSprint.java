@@ -5,6 +5,7 @@ import com.github.epsilon.events.impl.AfterSendPositionEvent;
 import com.github.epsilon.events.impl.AttackSlowdownEvent;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
+import com.github.epsilon.settings.impl.EnumSetting;
 
 public class KeepSprint extends Module {
 
@@ -13,6 +14,13 @@ public class KeepSprint extends Module {
     private KeepSprint() {
         super("Keep Sprint", Category.MOVEMENT);
     }
+
+    private enum Mode {
+        Vanilla,
+        Legit
+    }
+
+    private final EnumSetting<Mode> mode = enumSetting("Mode", Mode.Vanilla);
 
     private boolean shouldReSprint = false;
 
@@ -23,7 +31,12 @@ public class KeepSprint extends Module {
 
     @EventHandler
     private void onAttackSlowdown(AttackSlowdownEvent event) {
-        if (mc.player.isMoving()) shouldReSprint = true;
+        switch (mode.getValue()) {
+            case Vanilla -> event.cancel();
+            case Legit -> {
+                if (mc.player.isMoving()) shouldReSprint = true;
+            }
+        }
     }
 
     @EventHandler
