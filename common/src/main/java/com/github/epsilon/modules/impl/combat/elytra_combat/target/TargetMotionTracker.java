@@ -241,7 +241,7 @@ public class TargetMotionTracker {
     }
 
     /**
-     * Slimefun 的 NV 模型：对相邻速度差做指数加权平均，再线性外推。
+     * NV 模型：对相邻速度差做指数加权平均，再线性外推。
      */
     private static Vec3 nvPrediction(List<Sample> samples, int ticksLater) {
         Vec3 weighted = Vec3.ZERO;

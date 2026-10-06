@@ -7,7 +7,6 @@ import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightIntent;
 import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightIntentPlanner;
 import com.github.epsilon.modules.impl.combat.elytra_combat.flight.FlightPlanConfig;
 import com.github.epsilon.modules.impl.combat.elytra_combat.flight.LocalFlightAvoidance;
-import com.github.epsilon.modules.impl.combat.elytra_combat.flight.SlimefunGeometry;
 import com.github.epsilon.modules.impl.combat.elytra_combat.target.TargetSnapshot;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
@@ -46,9 +45,8 @@ public class MaceBehavior implements ElytraCombatBehavior {
 
     private State state = State.NONE;
     private int pullUpStartTick;
-    /** 头顶受阻 / 脚下受阻的连续 tick 数，用于抑制状态在边界上逐 tick 互抢。 */
+    /** 头顶受阻的连续 tick 数，用于抑制状态在边界上逐 tick 互抢。 */
     private int headBlockedTicks;
-    private int feetBlockedTicks;
     /** 已选中的地面落点；沿用它可以避免逐 tick 在相邻候选间跳点（低空绕圈）。 */
     private BlockPos lastGroundCandidate;
     /** 俯冲攻击后的改出剩余 tick 数。 */
@@ -92,7 +90,6 @@ public class MaceBehavior implements ElytraCombatBehavior {
         this.state = State.NONE;
         this.pullUpStartTick = 0;
         this.headBlockedTicks = 0;
-        this.feetBlockedTicks = 0;
         this.lastGroundCandidate = null;
         this.recoveryTicks = 0;
         this.strikeTicks = 0;
@@ -176,11 +173,6 @@ public class MaceBehavior implements ElytraCombatBehavior {
                 // 地面目标需要先找可攻击落点；空中目标直接追预测位置。
                 if (target.supported()) {
                     desired = strikeOrReapproach(bot, targetPos, target, tick);
-                } else if (bot.chaseMode.is(ChaseMode.Slimefun) && slimefunFeetBlocked(bot, true)) {
-                    // Slimefun：脚下被挡说明高度不够，重新拉升（攻击交给 KillAura）。
-                    // 同样加迟滞：脚下探测的抖动会让拉升与跟随互抢。
-                    enterPullUp(tick);
-                    desired = pullUp(bot, targetPos, target);
                 } else if (bot.player().fallDistance < 1.0E-6 && bot.lastFallDistance > 1.0E-6) {
                     enterPullUp(tick);
                     desired = pullUp(bot, targetPos, target);
@@ -196,7 +188,6 @@ public class MaceBehavior implements ElytraCombatBehavior {
         ElytraDebug.log(ElytraDebug.SLOT_MACE_STATE, "mace.state",
                 this.state.name()
                         + " head=" + this.headBlockedTicks
-                        + " feet=" + this.feetBlockedTicks
                         + " y=" + ElytraDebug.fmt(bot.player().getY())
                         + " ty=" + ElytraDebug.fmt(targetPos.y)
                         + " fall=" + ElytraDebug.fmt(bot.player().fallDistance));
@@ -454,60 +445,19 @@ public class MaceBehavior implements ElytraCombatBehavior {
         return vector.length() < minimum ? vector.normalize().scale(minimum) : vector;
     }
 
-    // ===== Slimefun 侧移植：SlimefunHelper ElytraBot 的 MaceArua 追击几何 =====
-
-    /** 绕飞半径额外值（combat-smooth-flight-circle-extra-range）。 */
-    private static final double SLIMEFUN_CIRCLE_EXTRA_RANGE = 1.0;
-    /** 绕飞外抛比例（combat-smooth-flight-out-pull-ratio）。 */
-    private static final double SLIMEFUN_OUT_PULL_RATIO = 1.0;
-    /** 上抬攻击的水平距离上限 / 垂直分量 / 相对高度区间。 */
-    private static final double SLIMEFUN_ATTACK_PULL_MAX_HORIZONTAL = 10.0;
-    private static final double SLIMEFUN_ATTACK_PULL_UP = 10.0;
-    private static final double SLIMEFUN_ATTACK_PULL_MIN_RELATIVE_Y = 0.0;
-    private static final double SLIMEFUN_ATTACK_PULL_MAX_RELATIVE_Y = 10.0;
-    /** 拉升方向保持的判定距离（pullup-persistent-direction）。 */
-    private static final double SLIMEFUN_PULLUP_PERSISTENT_DISTANCE = 6.0;
-    /** 跟随预测线的起始距离（start-predict-distance）。 */
-    private static final double SLIMEFUN_FOLLOW_START_PREDICT_DISTANCE = 10.0;
-    /** 跟随俯冲的最小俯仰角（follow-min-pitch-deg）。 */
-    private static final double SLIMEFUN_FOLLOW_MIN_PITCH_DEG = 15.0;
-    /** 跟随瞄准点的高度插值权重（mace-y-level-lerp）与近身判定距离（choose-down-target-distance）。 */
-    private static final double SLIMEFUN_FOLLOW_Y_LEVEL_WEIGHT = 0.0;
-    private static final double SLIMEFUN_FOLLOW_DOWN_TARGET_DISTANCE = 3.0;
-    /** 方向最小长度，Slimefun 侧统一为 5。 */
-    private static final double SLIMEFUN_MIN_DIRECTION_LENGTH = 5.0;
-    /** 目标高度判定的迟滞带（格），避免 yLow 在目标 Y 附近来回切换机动。 */
-    private static final double SLIMEFUN_Y_LOW_HYSTERESIS = 1.0;
-    /**
-     * 拉升阶段是否启用切线绕飞（对应 SlimefunHelper 的 combat-smooth-flight-pullup，默认关闭）。
-     */
-    private static final boolean SLIMEFUN_PULLUP_ORBIT = false;
-    /**
-     * 拉升阶段是否启用"上抬攻击"（对应 combat-smooth-flight-pullup-attack，默认关闭）。
-     * 开启会使用固定 +10 上抬并忽略 Mace Height。
-     */
-    private static final boolean SLIMEFUN_PULLUP_ATTACK = false;
-    /**
-     * 拉升阶段是否启用"方向保持"（对应 pullup-persistent-direction，默认关闭）。
-     */
-    private static final boolean SLIMEFUN_PULLUP_PERSISTENT_DIRECTION = false;
     /** 俯冲攻击后的改出阶段：持续 tick 数、水平速度与抬升分量。 */
     private static final int RECOVERY_TICKS = 5;
     private static final double RECOVERY_HORIZONTAL_SPEED = 6.0;
     private static final double RECOVERY_CLIMB = 8.0;
 
     private Vec3 pullUp(ElytraCombat bot, Vec3 targetPos, TargetSnapshot target) {
-        Vec3 result = bot.chaseMode.is(ChaseMode.Slimefun)
-                ? slimefunPullUpDirection(bot, targetPos, target)
-                : pullUpDirection(bot, targetPos, target);
+        Vec3 result = pullUpDirection(bot, targetPos, target);
         ElytraDebug.log(ElytraDebug.SLOT_MACE_MANEUVER, "maneuver.pullup", vec(result));
         return result;
     }
 
     private Vec3 follow(ElytraCombat bot, Vec3 targetPos, TargetSnapshot target) {
-        Vec3 result = bot.chaseMode.is(ChaseMode.Slimefun)
-                ? slimefunFollowDirection(bot, targetPos, target)
-                : followDirection(bot, targetPos, target);
+        Vec3 result = followDirection(bot, targetPos, target);
         ElytraDebug.log(ElytraDebug.SLOT_MACE_MANEUVER, "maneuver.follow", vec(result));
         return result;
     }
@@ -516,166 +466,6 @@ public class MaceBehavior implements ElytraCombatBehavior {
     private static String vec(Vec3 value) {
         return value == null ? "null"
                 : "(" + ElytraDebug.fmt(value.x) + "," + ElytraDebug.fmt(value.y) + "," + ElytraDebug.fmt(value.z) + ")";
-    }
-
-    /**
-     * Slimefun 的脚部探测：向下 0.1 格被挡说明高度不够。
-     *
-     * @param requireLatch 为真时要求连续受阻 {@link #PROBE_LATCH_TICKS} 个 tick 才算成立
-     */
-    private boolean slimefunFeetBlocked(ElytraCombat bot, boolean requireLatch) {
-        Vec3 position = bot.player().position();
-        boolean blocked = !LocalFlightAvoidance.isSegmentClear(bot.player(), position, position.add(0.0, -0.1, 0.0));
-        this.feetBlockedTicks = blocked ? this.feetBlockedTicks + 1 : 0;
-        if (ElytraDebug.enabled) {
-            ElytraDebug.log(ElytraDebug.SLOT_PROBE, "probe.feet",
-                    blocked + " run=" + this.feetBlockedTicks);
-        }
-        return blocked && (!requireLatch || this.feetBlockedTicks >= PROBE_LATCH_TICKS);
-    }
-
-    /**
-     * 拉升几何：切线绕飞 → 上抬攻击 → 普通拉升（瞄准目标上方），再套方向保持与最小长度。
-     */
-    private Vec3 slimefunPullUpDirection(ElytraCombat bot, Vec3 targetPos, TargetSnapshot target) {
-        LocalPlayer player = bot.player();
-        Vec3 playerPos = player.position();
-        boolean onGroundSupport = target.supported();
-        // 1 格迟滞带：玩家 Y 在目标 Y 附近来回穿越时，切线绕飞与拉升会逐 tick 互切。
-        boolean yLow = targetPos.y >= player.getY() - SLIMEFUN_Y_LOW_HYSTERESIS;
-        Vec3 movement = null;
-        boolean smoothHideFlight = false;
-
-        // 1) 切线绕飞：对应来源项目的 combat-smooth-flight-pullup，该项在 SlimefunHelper 里默认关闭。
-        // 它给出的方向几乎水平（只有 1e-2 抬升），在 Epsilon 的滑翔物理下无法爬升，
-        // 会把状态机锁死在 PULL_UP 并绕目标转圈，因此这里同样默认关闭。
-        if (SLIMEFUN_PULLUP_ORBIT && !onGroundSupport && yLow) {
-            Vec3 center = target.entity().getBoundingBox().getCenter();
-            double radius = bot.maceEngageRange.getValue() + SLIMEFUN_CIRCLE_EXTRA_RANGE;
-            Vec3[] orbit = SlimefunGeometry.orbitDirections(center, player.getEyePosition(), radius, SLIMEFUN_OUT_PULL_RATIO);
-            if (orbit.length > 0) {
-                movement = orbit[orbit.length - 1].scale(10.0);
-                smoothHideFlight = player.getEyePosition().distanceToSqr(center) < radius * radius;
-            }
-        }
-
-        // 2) 上抬攻击：对应来源项目的 combat-smooth-flight-pullup-attack，该项在 SlimefunHelper
-        // 里默认关闭。它使用固定 +10 上抬，只要水平距离够近就持续触发，会无视 Mace Height 一路爬升，
-        // 因此这里同样默认关闭，拉升只走「瞄准目标上方配置高度」这一条。
-        if (SLIMEFUN_PULLUP_ATTACK && movement == null && !onGroundSupport) {
-            Vec3 toTarget = targetPos.subtract(playerPos);
-            if (toTarget.horizontalDistance() < SLIMEFUN_ATTACK_PULL_MAX_HORIZONTAL) {
-                if (targetPos.y + SLIMEFUN_ATTACK_PULL_MIN_RELATIVE_Y > player.getY()) {
-                    movement = new Vec3(-toTarget.x, SLIMEFUN_ATTACK_PULL_UP, -toTarget.z);
-                } else if (targetPos.y + SLIMEFUN_ATTACK_PULL_MAX_RELATIVE_Y > player.getY()) {
-                    movement = new Vec3(toTarget.x, SLIMEFUN_ATTACK_PULL_UP, toTarget.z);
-                }
-            }
-        }
-
-        // 3) 普通拉升：瞄准目标上方高度。
-        if (movement == null) {
-            double height = onGroundSupport ? bot.maceGroundHeight.getValue() : bot.maceHeight.getValue();
-            movement = new Vec3(targetPos.x, targetPos.y + height, targetPos.z).subtract(playerPos);
-        }
-
-        // 4) 方向保持：水平距离较小时若与最近移动方向相反则水平取反，避免原地来回。
-        // 该翻转本身会让"速度与方向相反"的判定逐 tick 成立/失效，近距离低空时表现为绕圈，
-        // 因此默认关闭（对应来源项目的 pullup-persistent-direction，需要时可打开）。
-        if (SLIMEFUN_PULLUP_PERSISTENT_DIRECTION && !smoothHideFlight) {
-            double horizontal = movement.horizontalDistance();
-            if (horizontal > 1.0E-1 && SLIMEFUN_PULLUP_PERSISTENT_DISTANCE > horizontal
-                    && player.getDeltaMovement().dot(movement) < 0.0) {
-                movement = new Vec3(-movement.x, movement.y, -movement.z);
-            }
-        }
-
-        return ensureMinimumLength(movement, SLIMEFUN_MIN_DIRECTION_LENGTH);
-    }
-
-    /**
-     * Slimefun 跟随几何：预测线 → 直接瞄准 → 压到自身高度 → 压到 yLerp - MinFollowHeight，
-     * 每个候选都要通过 Slimefun 的 {@code conditionMovement}（只接受下压方向，俯冲不够陡时要求仍能攻击）。
-     */
-    private Vec3 slimefunFollowDirection(ElytraCombat bot, Vec3 targetPos, TargetSnapshot target) {
-        LocalPlayer player = bot.player();
-        Vec3 playerPos = player.position();
-        double yLerp = targetPos.y * SLIMEFUN_FOLLOW_Y_LEVEL_WEIGHT + player.getY() * (1.0 - SLIMEFUN_FOLLOW_Y_LEVEL_WEIGHT);
-        boolean near = playerPos.distanceToSqr(targetPos)
-                < SLIMEFUN_FOLLOW_DOWN_TARGET_DISTANCE * SLIMEFUN_FOLLOW_DOWN_TARGET_DISTANCE;
-
-        List<Vec3> candidates = new ArrayList<>(4);
-        if (playerPos.distanceTo(targetPos) > SLIMEFUN_FOLLOW_START_PREDICT_DISTANCE) {
-            candidates.add(target.predictedPosition().subtract(playerPos));
-        }
-        if (!near) {
-            candidates.add(targetPos.subtract(playerPos));
-        }
-        candidates.add(new Vec3(targetPos.x, player.getY(), targetPos.z).subtract(playerPos));
-        if (near) {
-            // 与 Slimefun 一致：只有近身时才尝试「压到 yLerp - MinFollowHeight」的低位候选。
-            candidates.add(new Vec3(targetPos.x, yLerp - bot.maceFollowMinHeight.getValue(), targetPos.z).subtract(playerPos));
-        }
-
-        Vec3 movement = null;
-        for (Vec3 candidate : candidates) {
-            if (candidate.lengthSqr() < 1.0E-8) {
-                continue;
-            }
-            Vec3 direction = candidate.normalize();
-            if (slimefunFollowAllowed(bot, target, direction)) {
-                movement = direction;
-                break;
-            }
-        }
-        if (movement == null) {
-            // 俯冲角判定全部否决时清掉垂直分量，保持水平追击。
-            for (Vec3 candidate : candidates) {
-                Vec3 flat = new Vec3(candidate.x, 0.0, candidate.z);
-                if (flat.lengthSqr() > 1.0E-8) {
-                    movement = flat.normalize();
-                    break;
-                }
-            }
-        }
-        if (movement == null) {
-            return Vec3.ZERO;
-        }
-
-        if (target.supported()) {
-            // 地面目标抬高瞄准点，避免贴地追击。
-            movement = movement.add(0.0, bot.followGroundHeight.getValue(), 0.0);
-        } else if (yLerp - bot.maceFollowMinHeight.getValue() > player.getY()) {
-            // 高度不足时不再下压（Slimefun：这里已经是「没招了」的分支）。
-            movement = new Vec3(movement.x, 0.0, movement.z);
-        }
-
-        if (movement.y >= 0.0) {
-            return ensureMinimumLength(movement, SLIMEFUN_MIN_DIRECTION_LENGTH);
-        }
-        // 俯冲角限制：垂直分量不超过水平分量的最大值。
-        double horizontalMax = Math.max(Math.abs(movement.x), Math.abs(movement.z));
-        if (horizontalMax > 1.0E-1 && Math.abs(movement.y) > horizontalMax) {
-            movement = new Vec3(movement.x, -horizontalMax, movement.z);
-        }
-        return ensureMinimumLength(movement, SLIMEFUN_MIN_DIRECTION_LENGTH);
-    }
-
-    /**
-     * Slimefun 的 {@code conditionMovement}：只接受向下方向；俯仰角不足时要求当前仍在攻击距离内。
-     */
-    private boolean slimefunFollowAllowed(ElytraCombat bot, TargetSnapshot target, Vec3 direction) {
-        if (direction.y >= 0.0) {
-            return false;
-        }
-        float pitch = (float) -Math.toDegrees(Math.atan2(
-                direction.y,
-                Math.max(1.0E-3, direction.horizontalDistance())
-        ));
-        if (pitch < SLIMEFUN_FOLLOW_MIN_PITCH_DEG) {
-            return bot.player().isWithinEntityInteractionRange(target.entity(), 0.5);
-        }
-        return true;
     }
 
 }

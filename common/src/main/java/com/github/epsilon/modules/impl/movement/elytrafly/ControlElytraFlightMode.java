@@ -33,6 +33,15 @@ public class ControlElytraFlightMode extends ElytraFlightMode {
     private static final int EAT_CLIMB_TICK = 20;
     private static final int EAT_CLIMB_TICKS = 5;
     private static final float EAT_CLIMB_PITCH = -45f;
+    /**
+     * 总速度低于该值（格/tick）视为动量不足，缩短补发等待。
+     *
+     * <p>必须用**总速度**而不是水平分量：垂直爬升时水平速度本来就接近 0，只看水平分量会把
+     * "正在上升"误判成"失速"并疯狂补发烟花。正常滑翔的总速度在 0.5~2 格/tick，被打停后接近 0。</p>
+     */
+    private static final double LOW_MOMENTUM_SPEED = 0.4;
+    /** 动量不足时的最短补发间隔（tick）：完全绕过节流会变成每 tick 连发。 */
+    private static final int LOW_MOMENTUM_BOOST_INTERVAL_TICKS = 4;
 
     private boolean hasFirstFirework;
     private boolean shouldJump;
@@ -126,7 +135,14 @@ public class ControlElytraFlightMode extends ElytraFlightMode {
     }
 
     private void updateControl() {
-        if (elytraFly.noSprint.getValue() && mc.player.isSprinting()) return;
+        // 疾跑只该影响起飞/换甲这类控制动作，不该连带把烟花一起停掉：被击退后角色常常正好处于
+        // 疾跑状态，烟花一停动量就再也回不来（滑翔的水平对齐项在速度归零后恒为 0）。
+        if (elytraFly.noSprint.getValue() && mc.player.isSprinting()) {
+            if (!elytraFly.armored.getValue()) {
+                useTimedFirework();
+            }
+            return;
+        }
 
         boolean eating = isEating();
 
@@ -162,7 +178,11 @@ public class ControlElytraFlightMode extends ElytraFlightMode {
     }
 
     private void useTimedFirework() {
-        if (ElytraCombat.INSTANCE.isEnabled() && !ElytraCombat.INSTANCE.shouldUseFirework()) {
+        // 只有 ElytraCombat 真的在驾驶（有目标并产出控制输入）时才按它的意图拦截烟花。
+        // 模块开着但待机（刚被打断、目标丢失）时 latestIntent 是 idle、useFirework 为 false，
+        // 旧写法会在这里把烟花整个卡死——而那正是最需要推进保命的时候。
+        if (ElytraCombat.INSTANCE.isDrivingFlight() && !ElytraCombat.INSTANCE.shouldUseFirework()) {
+            ElytraDebug.log(ElytraDebug.SLOT_FIREWORK, "firework", "blocked by ElytraCombat");
             return;
         }
         if (!elytraFly.useFireworks.getValue()) return;
@@ -172,12 +192,38 @@ public class ControlElytraFlightMode extends ElytraFlightMode {
             }
             return;
         }
-        if (!pendingFirework && !timer.hasDelayed(elytraFly.boostDelay.getValue())) return;
+        // 动量不足（被击退、撞到障碍、刚起飞）时把等待从 Boost Delay 缩短到最短间隔：
+        // 按 Boost Delay 等 20 tick 动量早就掉光了，而完全绕过节流又会变成每 tick 连发烟花。
+        boolean lowMomentum = isLowMomentum();
+        int waitTicks = lowMomentum
+                ? Math.min(LOW_MOMENTUM_BOOST_INTERVAL_TICKS, elytraFly.boostDelay.getValue())
+                : elytraFly.boostDelay.getValue();
+        if (!pendingFirework && !timer.hasDelayed(waitTicks)) {
+            return;
+        }
         pendingFirework = false;
         if (useFirework()) {
             hasFirstFirework = true;
             timer.reset();
+            ElytraDebug.log(ElytraDebug.SLOT_FIREWORK, "firework",
+                    lowMomentum ? "boost (low momentum)" : "boost");
+        } else {
+            ElytraDebug.log(ElytraDebug.SLOT_FIREWORK, "firework", "use failed");
         }
+    }
+
+    /**
+     * 动量是否低到需要缩短补发等待。
+     *
+     * <p>判据是**总速度**（含 y 分量）：垂直爬升时水平速度本来就接近 0，只看水平分量会把
+     * "正在上升"误判成"失速"。真正被打停时三个分量都会接近 0，而滑翔方程的水平对齐项按
+     * {@code moveHorLength}（来自当前速度）缩放，速度为 0 时恒为 0、无法自恢复，只能靠烟花。</p>
+     */
+    private boolean isLowMomentum() {
+        if (!mc.player.isFallFlying()) {
+            return false;
+        }
+        return mc.player.getDeltaMovement().length() < LOW_MOMENTUM_SPEED;
     }
 
     private boolean isEating() {

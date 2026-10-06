@@ -9,7 +9,6 @@ import com.github.epsilon.managers.target.TargetManager;
 import com.github.epsilon.managers.target.TargetRequest;
 import com.github.epsilon.modules.Category;
 import com.github.epsilon.modules.Module;
-import com.github.epsilon.modules.impl.combat.elytra_combat.behavior.ChaseMode;
 import com.github.epsilon.modules.impl.combat.elytra_combat.behavior.ElytraCombatBehavior;
 import com.github.epsilon.modules.impl.combat.elytra_combat.behavior.FollowBehavior;
 import com.github.epsilon.modules.impl.combat.elytra_combat.behavior.MaceBehavior;
@@ -58,13 +57,7 @@ public class ElytraCombat extends Module {
         /**
          * 在 FallFlyingMovementEvent 中直接覆盖当 tick 速度，作为低反模式。
          */
-        DirectVelocity,
-        /**
-         * Slimefun 追击组合的显式选项：飞行执行与 {@link #Input} 完全一致——复用 ElytraFly 自己的
-         * 烟花推进（火箭按 ElytraFly 的 Boost Delay 发射、静默旋转负责瞄准）与原版滑翔物理，
-         * 因此不产生服务端无法复现的移动；两者的差别只来自行为层的 Chase Mode 与规划层的 Path Mode。
-         */
-        SlimefunFirework
+        DirectVelocity
     }
 
     private final SettingGroup sgGeneral = settingGroup("General");
@@ -107,21 +100,15 @@ public class ElytraCombat extends Module {
     public final DoubleSetting stopDistance = doubleSetting("Stop Distance", 6.0, 1.0, 32.0, 0.5).group(sgFollow);
     public final DoubleSetting followGroundHeight =
             doubleSetting("Follow Ground Height", 2.0, 0.0, 12.0, 0.5).group(sgFollow);
-    /** 避障策略：AStar 走原有寻路，Slimefun 用来源项目的反应式机动。 */
-    public final EnumSetting<NavigationMode> pathMode =
-            enumSetting("Path Mode", NavigationMode.AStar, mode -> this.flightPlanner.reset()).group(sgFollow);
-    /** 追击机动来源：只影响 Mace 与 Spear 两个模式的追人几何。 */
-    public final EnumSetting<ChaseMode> chaseMode =
-            enumSetting("Chase Mode", ChaseMode.Epsilon).group(sgFollow);
     private final BoolSetting pathfinding =
-            boolSetting("Pathfinding", true, () -> pathMode.is(NavigationMode.AStar)).group(sgFollow);
+            boolSetting("Pathfinding", true).group(sgFollow);
     private final IntSetting searchRadius = intSetting("Search Radius", 24, 6, 64, 1,
-            () -> pathMode.is(NavigationMode.AStar) && pathfinding.getValue()).group(sgFollow);
+            pathfinding::getValue).group(sgFollow);
     private final IntSetting maxNodes = intSetting("Max Nodes", 1200, 100, 6000, 100,
-            () -> pathMode.is(NavigationMode.AStar) && pathfinding.getValue()).group(sgFollow);
+            pathfinding::getValue).group(sgFollow);
     private final IntSetting dataSize = intSetting(
             "Data Size", 50, 25, 100, 5,
-            () -> pathMode.is(NavigationMode.AStar) && pathfinding.getValue(), this::setPathDataSize
+            pathfinding::getValue, this::setPathDataSize
     ).applyWhenRelease().group(sgFollow);
 
     public final DoubleSetting maceEngageRange =
@@ -341,8 +328,7 @@ public class ElytraCombat extends Module {
                 this.stopDistance.getValue(),
                 this.searchRadius.getValue(),
                 this.maxNodes.getValue(),
-                this.pathfinding.getValue(),
-                this.pathMode.getValue()
+                this.pathfinding.getValue()
         );
         FlightIntent intent = this.currentBehavior.tick(
                 this,

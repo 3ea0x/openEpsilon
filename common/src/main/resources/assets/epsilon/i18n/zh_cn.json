@@ -1918,16 +1918,6 @@
         "follow": "追人",
         "stop distance": "停止距离",
         "follow ground height": "地面目标跟随高度",
-        "path mode": {
-          "_value": "寻路方式",
-          "astar": "A* 寻路",
-          "slimefun": "Slimefun 机动"
-        },
-        "chase mode": {
-          "_value": "追击方式",
-          "epsilon": "本项目",
-          "slimefun": "Slimefun"
-        },
         "pathfinding": "寻路",
         "search radius": "搜索半径",
         "max nodes": "最大节点数",
@@ -1959,8 +1949,7 @@
         "control mode": {
           "_value": "控制模式",
           "input": "输入控制",
-          "directvelocity": "直接速度",
-          "slimefunfirework": "Slimefun 烟花"
+          "directvelocity": "直接速度"
         },
         "max flight speed": "最大飞行速度",
         "max turn speed": "最大转向速度",

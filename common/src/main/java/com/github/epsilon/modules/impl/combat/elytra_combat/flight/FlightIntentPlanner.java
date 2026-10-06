@@ -35,19 +35,6 @@ public class FlightIntentPlanner {
         }
 
         Vec3 desired = rawIntent.desiredVelocity();
-        if (config.navigationMode() == NavigationMode.Slimefun) {
-            // Slimefun 模式：反应式机动整体替换 A* 与扇区避障，并且永远给出一个方向。
-            this.lastAvoidanceDirection = null;
-            Vec3 direction = SlimefunFlightNavigator.navigate(player, desired, targetPoint, config.stopDistance());
-            ElytraDebug.log(ElytraDebug.SLOT_PLANNER, "planner", "slimefun " + vec(direction));
-            return new FlightIntent(
-                    direction,
-                    direction.normalize(),
-                    rawIntent.directVelocity(),
-                    rawIntent.useFirework()
-            );
-        }
-
         double probe = Math.clamp(desired.length() * 4.0, 4.0, LOCAL_PROBE_DISTANCE);
         Vec3 directEnd = player.position().add(desired.normalize().scale(probe));
         if (LocalFlightAvoidance.isSegmentClear(player, player.position(), directEnd)) {
