@@ -95,7 +95,16 @@ public class Chams extends Module {
         this.hasAlwaysOnTopSubmits = false;
     }
 
+    /**
+     * GUI 的实体预览（库存、锻造台）直接把渲染状态交给
+     * {@code EntityRenderDispatcher.submit}，不经过 {@code extractEntity}，
+     * 因此渲染状态上没有附带实体；这种情况按“非 Chams 目标”处理，避免 NPE。
+     */
     public boolean isValidEntity(Entity entity) {
+        if (entity == null) {
+            return false;
+        }
+
         if (entity instanceof Player player) {
             if (player == mc.player && !self.getValue()) {
                 return false;
