@@ -184,6 +184,11 @@ pass（`frameHasAlwaysOnTopGizmos()`）。因此 `MixinSubmitNodeCollection` 重
 不得把 Chams 提交改投 `seeThrough`：该 pass 没有深度附件，带 `DepthStencilState` 的管线会在
 `FrontendRenderPass.validateDraw` 抛 “wants a depth texture but none was provided”。
 
+GUI 的实体预览（库存、锻造台）不经过 `EntityRenderDispatcher.extractEntity`，而是直接
+`EntityRenderer.createRenderState(...)` 或手工构造渲染状态，再经 `GuiGraphicsExtractor.entity` 交给
+`GuiEntityRenderer.renderToTexture` 调 `EntityRenderDispatcher.submit`；这类渲染状态上没有实体，
+`Chams.isValidEntity(null)` 返回 `false`，预览按原版渲染，不得省略该判空（否则开 Chams 后打开库存必崩）。
+
 手部渲染器改名与拆分：`ItemInHandRenderer` 变为无状态的 `FirstPersonHandsAndItemsRenderer`，
 物品切换动画的计时移到 `net.minecraft.client.player.FirstPersonHandsAndItems`。修改 HandView、
 挥手或手持物品渲染时必须同时核验这两处，不能只改渲染器。
