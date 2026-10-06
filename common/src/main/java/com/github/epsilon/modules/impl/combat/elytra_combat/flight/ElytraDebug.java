@@ -72,6 +72,8 @@ public final class ElytraDebug {
     public static final int SLOT_HAZARD = 11;
     public static final int SLOT_PROBE = 12;
     public static final int SLOT_FIREWORK = 13;
+    /** Spear 命中 / 脱战事件；与逐 tick 的状态摘要分开，避免互相覆盖标签。 */
+    public static final int SLOT_SPEAR_HIT = 14;
 
     /** 浮点数统一按 2 位小数输出，便于肉眼比对。 */
     public static String fmt(double value) {

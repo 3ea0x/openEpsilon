@@ -55,8 +55,10 @@ public class ElytraDirectionSolver {
 
     /** 俯仰连续性容差：贴合度差距小于该值即视为"和最优一样好"。 */
     private static final double PITCH_CONTINUITY_EPSILON = 0.05;
-    /** 求解俯仰相对意图俯仰的最大偏离（度）；防止平台抖动决定抬头/低头。 */
-    private static final float PITCH_DEVIATION_LIMIT = 35.0f;
+    /** 求解俯仰相对意图俯仰的默认最大偏离（度）；防止平台抖动决定抬头/低头。 */
+    public static final float DEFAULT_PITCH_DEVIATION_LIMIT = 35.0f;
+    /** 容差不超过该值时视为"精确瞄准"，跳过俯仰连续性，避免已对准的姿态被上一 tick 拖回去。 */
+    private static final float PRECISE_PITCH_TOLERANCE = 5.0f;
     /**
      * 速度对齐的预演 tick 数。1 tick 会让求解器贴着当前速度不肯转向（平飞绕圈），
      * 取 4 tick 与安全预演保持同一视野。
@@ -89,6 +91,17 @@ public class ElytraDirectionSolver {
      * 完整预演的旋转，避免“下体过去但头顶撞方块”。</p>
      */
     public static Rot2f solveSafe(LocalPlayer player, Vec3 desiredVelocity) {
+        return solveSafe(player, desiredVelocity, DEFAULT_PITCH_DEVIATION_LIMIT);
+    }
+
+    /**
+     * 主线程使用的安全解，可指定俯仰容差。
+     *
+     * @param pitchDeviationLimit 求解俯仰允许偏离意图俯仰的最大角度（度）。默认值给"取升力/加速度"
+     *                            留了足够空间；长矛这类要求视线精确命中（kinetic 判定射线就是视线）
+     *                            的场景应该传更小的值，否则俯仰偏差会直接变成脱靶。
+     */
+    public static Rot2f solveSafe(LocalPlayer player, Vec3 desiredVelocity, float pitchDeviationLimit) {
         if (desiredVelocity.lengthSqr() < 1.0E-8) {
             return new Rot2f(player.getYRot(), player.getXRot());
         }
@@ -96,8 +109,12 @@ public class ElytraDirectionSolver {
         boolean ceilingEscape = shouldAvoidCeilingLift(player, desiredVelocity.y);
         Rot2f base = applyCeilingEscape(solve(player, desiredVelocity), ceilingEscape);
         base = applyDegenerateFallback(player, base, desiredVelocity, ceilingEscape);
-        base = applyIntentPitchLimit(base, desiredVelocity, ceilingEscape);
-        base = applyPitchContinuity(player, base, desiredVelocity, ceilingEscape);
+        base = applyIntentPitchLimit(base, desiredVelocity, ceilingEscape, pitchDeviationLimit);
+        // 精确瞄准（长矛）不沿用旧俯仰：applyPitchContinuity 会把已经对准的 base 换回上一 tick 的姿态，
+        // 多出来的几度偏差在判定半径只有 0.6 格时足够脱靶；它本来只是为消除平台抖动而设计的。
+        if (pitchDeviationLimit > PRECISE_PITCH_TOLERANCE) {
+            base = applyPitchContinuity(player, base, desiredVelocity, ceilingEscape, pitchDeviationLimit);
+        }
         int baseSafeTicks = trajectorySafeTicks(player, base.getYaw(), base.getPitch());
         ElytraDebug.log(ElytraDebug.SLOT_ROTATION, "rotation.solve",
                 "ceiling=" + ceilingEscape
@@ -147,19 +164,20 @@ public class ElytraDirectionSolver {
     }
 
     /**
-     * 把求解出的俯仰限制在"意图俯仰 ± {@link #PITCH_DEVIATION_LIMIT}"以内。
+     * 把求解出的俯仰限制在"意图俯仰 ± pitchDeviationLimit"以内。
      *
      * <p>速度对齐在"当前速度方向与期望方向夹角较大"时会形成平台：近乎垂直抬头和全俯冲的
      * 贴合度可以只差 0.0x（日志里的 0.63/0.65）。这点差异不该决定抬头还是低头——否则会出现
      * 意图只要 30° 爬升、实际却 85° 垂直上窜，离目标越来越远，之后再绕回来。
-     * 允许 ±{@link #PITCH_DEVIATION_LIMIT} 的偏离是为了保留取升力/加速度所需的微调空间。</p>
+     * 偏离上限由调用方给出：{@link #DEFAULT_PITCH_DEVIATION_LIMIT} 为取升力/加速度留了空间，
+     * 而需要视线精确命中的场景（长矛）会传更小的值。</p>
      */
-    private static Rot2f applyIntentPitchLimit(Rot2f base, Vec3 desiredVelocity, boolean ceilingEscape) {
+    private static Rot2f applyIntentPitchLimit(Rot2f base, Vec3 desiredVelocity, boolean ceilingEscape, float pitchDeviationLimit) {
         float desiredPitch = intentPitch(desiredVelocity, ceilingEscape);
         float limited = Mth.clamp(
                 base.getPitch(),
-                desiredPitch - PITCH_DEVIATION_LIMIT,
-                desiredPitch + PITCH_DEVIATION_LIMIT
+                desiredPitch - pitchDeviationLimit,
+                desiredPitch + pitchDeviationLimit
         );
         if (limited == base.getPitch()) {
             return base;
@@ -183,6 +201,11 @@ public class ElytraDirectionSolver {
      * 任何 pitch 的贴合度都是负的、彼此相差无几，argmax 没有意义；继续沿用上一 tick 的 pitch
      * 会把人锁在反向姿态里（表现为"停在天上等一会儿才俯冲"）。此时直接采用期望方向本身的俯仰，
      * 先把机头转过去，让下一 tick 的速度真正开始朝期望方向变化。</p>
+     *
+     * <p>这里不再对俯仰变化量设限：实测"视线尽快咬住目标"比"姿态平滑"更能提高命中率
+     * （对 Max Turn Speed 360 与 45 的对比：命中 2/3 对 1/6，退化次数 2.5 倍差距），
+     * 而限速会让俯仰滞后于目标、射线扫不到。姿态平滑交给 {@code applyIntentPitchLimit}
+     * 与滑翔物理本身。</p>
      */
     private static Rot2f applyDegenerateFallback(LocalPlayer player, Rot2f base, Vec3 desiredVelocity, boolean ceilingEscape) {
         Vec3 desiredDirection = desiredVelocity.normalize();
@@ -209,7 +232,7 @@ public class ElytraDirectionSolver {
      * 俯仰连续性：目标函数出现平台时（当前速度与期望方向相反最容易出现），
      * 只要上一 tick 的 pitch 与最优解贴合度差距在容差内，就沿用它，避免 pitch 逐 tick 乱跳。
      */
-    private static Rot2f applyPitchContinuity(LocalPlayer player, Rot2f base, Vec3 desiredVelocity, boolean ceilingEscape) {
+    private static Rot2f applyPitchContinuity(LocalPlayer player, Rot2f base, Vec3 desiredVelocity, boolean ceilingEscape, float pitchDeviationLimit) {
         if (Float.isNaN(lastSolvedPitch)) {
             return base;
         }
@@ -219,8 +242,8 @@ public class ElytraDirectionSolver {
         float bandPitch = intentPitch(desiredVelocity, ceilingEscape);
         previousPitch = Mth.clamp(
                 previousPitch,
-                bandPitch - PITCH_DEVIATION_LIMIT,
-                bandPitch + PITCH_DEVIATION_LIMIT
+                bandPitch - pitchDeviationLimit,
+                bandPitch + pitchDeviationLimit
         );
         Vec3 movement = player.getDeltaMovement();
         double gravity = effectiveGravity(player);

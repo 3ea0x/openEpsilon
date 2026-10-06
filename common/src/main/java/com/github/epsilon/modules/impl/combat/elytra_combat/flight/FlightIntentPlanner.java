@@ -74,7 +74,9 @@ public class FlightIntentPlanner {
             if (waypointVelocity.lengthSqr() >= 1.0E-8) {
                 waypointVelocity = waypointVelocity.normalize().scale(desired.length());
                 ElytraDebug.log(ElytraDebug.SLOT_PLANNER, "planner", "waypoint " + vec(waypointVelocity));
-                return new FlightIntent(waypointVelocity, waypointVelocity.normalize(), rawIntent.directVelocity(), false);
+                // 不在这里剥夺烟花：绕障/寻路时正是最需要推进的时候（撞上障碍后滑翔速度归零，
+                // 没有烟花就只能贴着障碍低速磨），是否放由 Allow Firework 与行为层意愿决定。
+                return new FlightIntent(waypointVelocity, waypointVelocity.normalize(), rawIntent.directVelocity(), rawIntent.useFirework());
             }
         }
 
@@ -97,12 +99,16 @@ public class FlightIntentPlanner {
                 this.lastAvoidanceDirection
         );
         if (avoidance == null) {
-            ElytraDebug.log(ElytraDebug.SLOT_AVOIDANCE, "avoidance", "none");
-            return FlightIntent.idle(player.getLookAngle());
+            // 局部避障的所有候选都被挡时不要交还全零意图：那会让 controlInput 变成 null、旋转退回
+            // "无请求"分支，玩家在目标旁边彻底失去控制（日志里的 avoidance none + intent 全零）。
+            // 这里保留行为层的期望方向，交给 ElytraDirectionSolver 的安全预演与逃逸搜索去挑一个能飞的解。
+            ElytraDebug.log(ElytraDebug.SLOT_AVOIDANCE, "avoidance", "none -> keep desired");
+            return new FlightIntent(desired, desired.normalize(), rawIntent.directVelocity(), rawIntent.useFirework());
         }
         this.lastAvoidanceDirection = avoidance.normalize();
         ElytraDebug.log(ElytraDebug.SLOT_AVOIDANCE, "avoidance", vec(avoidance));
-        return new FlightIntent(avoidance, this.lastAvoidanceDirection, rawIntent.directVelocity(), false);
+        // 同上：避障阶段保留烟花意愿，否则撞上障碍后没有推进，只能低速贴着障碍飞。
+        return new FlightIntent(avoidance, this.lastAvoidanceDirection, rawIntent.directVelocity(), rawIntent.useFirework());
     }
 
     /** 调试用的向量格式化。 */

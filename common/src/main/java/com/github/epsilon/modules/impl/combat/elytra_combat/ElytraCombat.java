@@ -56,7 +56,7 @@ public class ElytraCombat extends Module {
          */
         Input,
         /**
-         * 在 FallFlyingMovementEvent 中直接覆盖当 tick 速度，作为实验模式。
+         * 在 FallFlyingMovementEvent 中直接覆盖当 tick 速度，作为低反模式。
          */
         DirectVelocity,
         /**
@@ -510,6 +510,16 @@ public class ElytraCombat extends Module {
     /** 方向变化小于该角度时视为抖动，直接沿用上一 tick 的方向。 */
     private static final float TURN_DEAD_ZONE_DEGREES = 3.0f;
 
+    /**
+     * 长矛瞄准允许的俯仰偏差（度）。
+     *
+     * <p>kinetic 的判定射线就是视线，俯仰偏差会一比一变成脱靶距离，而判定半径只有约 0.6 格
+     * （碰撞箱半宽 0.3 + hitboxMargin 0.3）：8° 在 3 格上是 0.42 格还勉强够，到 5 格就是 0.70 格
+     * 直接脱靶。默认 35° 是给"取升力/加速度"留的空间，对长矛太松，这里收到 3°（3 格 0.16 格、
+     * 5 格 0.26 格），几乎把视线钉在目标中心上。</p>
+     */
+    private static final float SPEAR_PITCH_DEVIATION_LIMIT = 3.0f;
+
     private FlightIntent clampIntent(FlightIntent intent) {
         // 行为层可以返回任意长度向量，统一限制到 Max Flight Speed 后再交给飞控。
         Vec3 velocity = intent.desiredVelocity();
@@ -538,10 +548,13 @@ public class ElytraCombat extends Module {
             return next;
         }
 
+        // 长矛直接忽略 Max Turn Speed：实测同一场景下 360（不限速）命中 2/3，45 只有 1/6，
+        // 且 45 的 rotation.degenerate 是 360 的 2.5 倍。原因是 kinetic 判定射线就是视线，
+        // 目标一旦移到侧方，意图层限速会让方向滞后、射线跟着偏出目标；而滑翔速度的转向本来
+        // 就受物理限制（水平只有约 10%/tick），意图层再限一次只会雪上加霜。
+        // 3 度死区仍然保留：它处理的是微抖，与转向速度无关。
         double limit = this.maxTurnSpeed.getValue();
-        if (limit >= 360.0) {
-            return next;
-        }
+        boolean unlimited = limit >= 360.0 || this.mode.is(ElytraCombatMode.Spear);
 
         Vec3 previousDirection = previous.normalize();
         Vec3 nextDirection = desired.normalize();
@@ -557,7 +570,7 @@ public class ElytraCombat extends Module {
             yaw = previousYaw;
         } else {
             float nextYaw = (float) Math.toDegrees(Math.atan2(-nextDirection.x, nextDirection.z));
-            yaw = previousYaw + Mth.clamp(
+            yaw = unlimited ? nextYaw : previousYaw + Mth.clamp(
                     Mth.wrapDegrees(nextYaw - previousYaw),
                     (float) -limit,
                     (float) limit
@@ -580,7 +593,7 @@ public class ElytraCombat extends Module {
             );
         }
 
-        float pitch = previousPitch + Mth.clamp(pitchDelta, (float) -limit, (float) limit);
+        float pitch = unlimited ? nextPitch : previousPitch + Mth.clamp(pitchDelta, (float) -limit, (float) limit);
         Vec3 direction = this.mc.player.calculateViewVector(pitch, yaw).normalize();
         return new FlightIntent(
                 direction.scale(desired.length()),
@@ -603,7 +616,11 @@ public class ElytraCombat extends Module {
             return null;
         }
 
-        Rot2f rotations = ElytraDirectionSolver.solveSafe(player, velocity);
+        // Spear 模式收紧俯仰容差：长矛的命中判定沿视线扫掠，俯仰偏差直接等于脱靶。
+        float pitchTolerance = this.mode.is(ElytraCombatMode.Spear)
+                ? SPEAR_PITCH_DEVIATION_LIMIT
+                : ElytraDirectionSolver.DEFAULT_PITCH_DEVIATION_LIMIT;
+        Rot2f rotations = ElytraDirectionSolver.solveSafe(player, velocity, pitchTolerance);
         ElytraDirectionSolver.rememberPitch(rotations.getPitch());
         float yawDelta = Mth.wrapDegrees(rotations.getYaw() - player.getYRot());
         DirectionInput direction = directionInput(yawDelta);
